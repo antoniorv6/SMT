@@ -52,7 +52,7 @@ def main(data_path, corpus_name=None, model_name=None, metric_to_watch=None):
                                    monitor=metric_to_watch, mode='min',
                                    save_top_k=1, verbose=True)
 
-    trainer = Trainer(max_epochs=5000, check_val_every_n_epoch=2, logger=wandb_logger, callbacks=[checkpointer, early_stopping])
+    trainer = Trainer(max_epochs=5000, check_val_every_n_epoch=5, logger=wandb_logger, callbacks=[checkpointer, early_stopping])
     
     trainer.fit(model, train_dataloader, val_dataloader)
 

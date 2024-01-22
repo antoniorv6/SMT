@@ -25,9 +25,14 @@ def load_set(path, base_folder="GrandStaff", fileformat="jpg", krn_type="bekrn",
                 with open(f"Data/{base_folder}/{'.'.join(excerpt.split('.')[:-1])}.{krn_type}") as krnfile:
                     krn_content = krnfile.read()
                     fname = ".".join(excerpt.split('.')[:-1])
-                    img = cv2.imread(f"Data/{base_folder}/{fname}.{fileformat}")
-                    width = int(np.ceil(img.shape[1] * reduce_ratio))
-                    height = int(np.ceil(img.shape[0] * reduce_ratio))
+                    img = cv2.imread(f"Data/{base_folder}/{fname}{fileformat}")
+                    if img.shape[1] > 3056:
+                        width = int(np.ceil(3056 * reduce_ratio))
+                        height = int(np.ceil(max(img.shape[0], 256) * reduce_ratio))
+                    else:
+                        width = int(np.ceil(img.shape[1] * reduce_ratio))
+                        height = int(np.ceil(max(img.shape[0], 256) * reduce_ratio))
+                        
                     img = cv2.resize(img, (width, height))
                     y.append([content + '\n' for content in krn_content.split("\n")])
                     x.append(img)
@@ -41,8 +46,8 @@ def batch_preparation_img2seq(data):
     dec_in = [sample[1] for sample in data]
     gt = [sample[2] for sample in data]
 
-    max_image_width = max([img.shape[2] for img in images])
-    max_image_height = max([img.shape[1] for img in images])
+    max_image_width = max(128, max([img.shape[2] for img in images]))
+    max_image_height = max(256, max([img.shape[1] for img in images]))
 
     X_train = torch.ones(size=[len(images), 1, max_image_height, max_image_width], dtype=torch.float32)
 
@@ -131,6 +136,10 @@ class GrandStaffSingleSystem(OMRIMG2SEQDataset):
     
     def erase_numbers_in_tokens_with_equal(self, tokens):
         return [re.sub(r'(?<=\=)\d+', '', token) for token in tokens]
+
+    def get_width_avgs(self):
+        widths = [image.shape[1] for image in self.x]
+        return np.average(widths), np.max(widths), np.min(widths)
 
     def __getitem__(self, index):
         x = self.x[index]

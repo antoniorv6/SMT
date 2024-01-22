@@ -96,22 +96,23 @@ class MHA(nn.Module):
         if self.proj_value:
             xavier_uniform_(self.in_proj_v.weight)
 
+@gin.configurable
 class DecoderLayer(nn.Module):
 
-    def __init__(self, d_model, dim_ff) -> None:
+    def __init__(self, d_model, dim_ff, n_heads=4) -> None:
         super(DecoderLayer, self).__init__()
         self.d_model = d_model
         self.ff = dim_ff
 
         self.input_attention = MHA(embedding_dim=self.d_model,
-                             num_heads=4,
+                             num_heads=n_heads,
                              proj_value=True,
                              dropout=0.1)
         
         self.norm1 = nn.LayerNorm(self.d_model)
 
         self.cross_attention = MHA(embedding_dim=self.d_model,
-                             num_heads=4,
+                             num_heads=n_heads,
                              proj_value=True,
                              dropout=0.1)
 

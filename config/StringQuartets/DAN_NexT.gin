@@ -1,0 +1,15 @@
+main.data_path = "Data/GrandStaff/partitions_grandstaff/types/"
+main.model_name = "DAN_Next"
+main.metric_to_watch = "val_SER"
+main.corpus_name = "GrandStaff"
+
+load_grandstaff_singleSys.vocab_name = "GrandStaffGlobal"
+load_set.base_folder = "GrandStaff"
+load_set.fileformat = ".jpg"
+load_set.reduce_ratio = 1.0
+
+####
+DAN.encoder_type = "NexT"
+DAN.d_model = 256
+DAN.dim_ff = 256
+DAN.num_dec_layers = 8
