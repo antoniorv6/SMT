@@ -6,7 +6,7 @@ main.corpus_name = "Camera_GrandStaff"
 load_grandstaff_singleSys.vocab_name = "GrandStaffGlobal"
 load_set.base_folder = "GrandStaff"
 load_set.fileformat = "_distorted.jpg"
-load_set.reduce_ratio = 1.0
+load_set.reduce_ratio = 0.85
 
 ####
 DAN.encoder_type = "NexT"
