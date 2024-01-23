@@ -1,12 +1,13 @@
-main.data_path = "Data/GrandStaff/partitions_grandstaff/types/"
+main.data_path = "Data/Quartets/partitions_quartets/"
 main.model_name = "DAN_B"
 main.metric_to_watch = "val_SER"
-main.corpus_name = "GrandStaff"
+main.corpus_name = "Quartets"
 
-load_grandstaff_singleSys.vocab_name = "GrandStaffGlobal"
-load_set.base_folder = "GrandStaff"
-load_set.fileformat = "jpg"
-load_set.reduce_ratio = 1.0
+load_grandstaff_singleSys.vocab_name = "QuartetsGlobal"
+load_set.base_folder = "Quartets"
+load_set.fileformat = ".png"
+load_set.fixed_height = 256
+load_set.krn_type = "krn"
 
 ####
 
