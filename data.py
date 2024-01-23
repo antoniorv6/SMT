@@ -14,7 +14,7 @@ from torchvision import transforms
 
 
 @gin.configurable
-def load_set(path, base_folder="GrandStaff", fileformat="jpg", krn_type="bekrn", reduce_ratio=0.5):
+def load_set(path, base_folder="GrandStaff", fileformat="jpg", krn_type="bekrn", reduce_ratio=0.5, fixed_height=-1):
     x = []
     y = []
     with open(path) as datafile:
@@ -26,13 +26,16 @@ def load_set(path, base_folder="GrandStaff", fileformat="jpg", krn_type="bekrn",
                     krn_content = krnfile.read()
                     fname = ".".join(excerpt.split('.')[:-1])
                     img = cv2.imread(f"Data/{base_folder}/{fname}{fileformat}")
+                    if fixed_height > 0:
+                        height = fixed_height
+                        width = int(float(fixed_height * img.shape[1]) / img.shape[0])
                     if img.shape[1] > 3056:
                         width = int(np.ceil(3056 * reduce_ratio))
                         height = int(np.ceil(max(img.shape[0], 256) * reduce_ratio))
                     else:
                         width = int(np.ceil(img.shape[1] * reduce_ratio))
                         height = int(np.ceil(max(img.shape[0], 256) * reduce_ratio))
-                        
+
                     img = cv2.resize(img, (width, height))
                     y.append([content + '\n' for content in krn_content.split("\n")])
                     x.append(img)
