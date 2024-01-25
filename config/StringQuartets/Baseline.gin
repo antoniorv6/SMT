@@ -1,0 +1,10 @@
+main.data_path = "Data/Quartets/partitions_quartets/"
+main.model_name = "CNNT_CTC"
+main.metric_to_watch = "val_SER"
+main.corpus_name = "Quartets"
+
+load_ctc_data.vocab_name = "QuartetsGlobal"
+load_set.base_folder = "Quartets"
+load_set.fileformat = ".png"
+load_set.reduce_ratio = 0.4
+load_set.krn_type = "krn"
