@@ -5,8 +5,8 @@ main.corpus_name = "Quartets"
 
 load_grandstaff_singleSys.vocab_name = "QuartetsGlobal"
 load_set.base_folder = "Quartets"
-load_set.fileformat = ".png"
-load_set.fixed_height = 256
+load_set.fileformat = "_distorted.png"
+load_set.reduce_ratio = 1.0
 load_set.krn_type = "krn"
 
 ####

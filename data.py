@@ -12,11 +12,11 @@ from rich import progress
 from torch.utils.data import Dataset
 from torchvision import transforms
 
-
 @gin.configurable
-def load_set(path, base_folder="GrandStaff", fileformat="jpg", krn_type="bekrn", reduce_ratio=0.5, fixed_height=-1):
+def load_set(path, base_folder="GrandStaff", fileformat="jpg", krn_type="bekrn", reduce_ratio=0.5, fixed_size=None):
     x = []
     y = []
+    num = 0
     with open(path) as datafile:
         lines = datafile.readlines()
         for line in progress.track(lines):
@@ -26,10 +26,10 @@ def load_set(path, base_folder="GrandStaff", fileformat="jpg", krn_type="bekrn",
                     krn_content = krnfile.read()
                     fname = ".".join(excerpt.split('.')[:-1])
                     img = cv2.imread(f"Data/{base_folder}/{fname}{fileformat}")
-                    if fixed_height > 0:
-                        height = fixed_height
-                        width = int(float(fixed_height * img.shape[1]) / img.shape[0])
-                    if img.shape[1] > 3056:
+                    if fixed_size != None:
+                        width = fixed_size[1]
+                        height = fixed_size[0]
+                    elif img.shape[1] > 3056:
                         width = int(np.ceil(3056 * reduce_ratio))
                         height = int(np.ceil(max(img.shape[0], 256) * reduce_ratio))
                     else:
@@ -39,10 +39,35 @@ def load_set(path, base_folder="GrandStaff", fileformat="jpg", krn_type="bekrn",
                     img = cv2.resize(img, (width, height))
                     y.append([content + '\n' for content in krn_content.split("\n")])
                     x.append(img)
+                    #num +=1
+                    #if num > 100:
+                    #    break
             except Exception:
                 print(f'Error reading Data/GrandStaff/{excerpt}')
 
     return x, y
+
+def batch_preparation_ctc(data):
+    images = [sample[0] for sample in data]
+    gt = [sample[1] for sample in data]
+    L = [sample[2] for sample in data]
+    T = [sample[3] for sample in data]
+
+    max_image_width = max([img.shape[2] for img in images])
+    max_image_height = max([img.shape[1] for img in images])
+
+    X_train = torch.ones(size=[len(images), 1, max_image_height, max_image_width], dtype=torch.float32)
+
+    for i, img in enumerate(images):
+        c, h, w = img.size()
+        X_train[i, :, :h, :w] = img
+    
+    max_length_seq = max([len(w) for w in gt])
+    Y_train = torch.zeros(size=[len(gt),max_length_seq])
+    for i, seq in enumerate(gt):
+        Y_train[i, 0:len(seq)] = torch.from_numpy(np.asarray([char for char in seq]))
+
+    return X_train, Y_train, L, T
 
 def batch_preparation_img2seq(data):
     images = [sample[0] for sample in data]
@@ -172,6 +197,73 @@ class GrandStaffSingleSystem(OMRIMG2SEQDataset):
                     
             Y[idx] = self.erase_numbers_in_tokens_with_equal(['<bos>'] + krn + ['<eos>'])
         return Y
+    
+class CTCDataset(Dataset):
+    def __init__(self, data_path, augment=False) -> None:
+        self.x, self.y = load_set(data_path)
+        self.x = self.preprocess_images(self.x)
+        self.y = self.preprocess_gt(self.y)
+        self.tensorTransform = transforms.Compose([
+            transforms.ToPILImage(),
+            transforms.Grayscale(),
+            transforms.ToTensor()]
+        )
+    
+    def preprocess_images(self, X):
+        for idx, sample in enumerate(X):
+            X[idx] = cv2.rotate(sample, cv2.ROTATE_90_CLOCKWISE)
+
+        return X
+    
+    def preprocess_gt(self, Y):
+        for idx, krn in enumerate(Y):
+            krn = "".join(krn)
+            krn = krn.replace(" ", " <s> ")
+            krn = krn.replace("·", "")
+            krn = krn.replace("\t", " <t> ")
+            krn = krn.replace("\n", " <b> ")
+            krn = krn.split(" ")
+                    
+            Y[idx] = self.erase_numbers_in_tokens_with_equal(krn)
+        return Y
+
+    def __len__(self):
+        return len(self.x)
+    
+    def erase_numbers_in_tokens_with_equal(self, tokens):
+        return [re.sub(r'(?<=\=)\d+', '', token) for token in tokens]
+
+    def __getitem__(self, index):
+        image = self.tensorTransform(self.x[index])
+        gt = torch.from_numpy(np.asarray([self.w2i[token] for token in self.y[index]]))
+        
+        return image, gt, (image.shape[2] // 8) * (image.shape[1] // 16), len(gt)
+
+    def get_max_hw(self):
+        m_width = np.max([img.shape[1] for img in self.x])
+        m_height = np.max([img.shape[0] for img in self.x])
+
+        return m_height, m_width
+    
+    def get_max_seqlen(self):
+        return np.max([len(seq) for seq in self.y])
+
+    def vocab_size(self):
+        return len(self.w2i)
+
+    def get_gt(self):
+        return self.y
+    
+    def set_dictionaries(self, w2i, i2w):
+        self.w2i = w2i
+        self.i2w = i2w
+        self.padding_token = w2i['<pad>']
+    
+    def get_dictionaries(self):
+        return self.w2i, self.i2w
+    
+    def get_i2w(self):
+        return self.i2w
 
 @gin.configurable
 def load_grandstaff_singleSys(data_path, vocab_name, val_path=None):
@@ -189,6 +281,21 @@ def load_grandstaff_singleSys(data_path, vocab_name, val_path=None):
 
     return train_dataset, val_dataset, test_dataset
 
+@gin.configurable
+def load_ctc_data(data_path, vocab_name, val_path=None):
+    if val_path == None:
+        val_path = data_path
+    train_dataset = CTCDataset(data_path=f"{data_path}/train.txt", augment=True)
+    val_dataset = CTCDataset(data_path=f"{val_path}/val.txt")
+    test_dataset = CTCDataset(data_path=f"{data_path}/test.txt")
+
+    w2i, i2w = check_and_retrieveVocabulary([train_dataset.get_gt(), val_dataset.get_gt(), test_dataset.get_gt()], "vocab/", f"{vocab_name}")
+
+    train_dataset.set_dictionaries(w2i, i2w)
+    val_dataset.set_dictionaries(w2i, i2w)
+    test_dataset.set_dictionaries(w2i, i2w)
+
+    return train_dataset, val_dataset, test_dataset
 
 
 

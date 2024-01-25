@@ -5,9 +5,9 @@ import torch
 import torch.nn as nn
 
 from loguru import logger
-from data import load_grandstaff_singleSys, batch_preparation_img2seq
+from data import load_ctc_data, batch_preparation_ctc
 from torch.utils.data import DataLoader
-from ModelManager import get_DAN_network, Poliphony_DAN
+from ModelManager import get_model, LighntingE2EModelUnfolding
 from lightning.pytorch import Trainer
 from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.pytorch.loggers import WandbLogger
@@ -28,22 +28,19 @@ def main(data_path, corpus_name=None, model_name=None, metric_to_watch=None):
     os.makedirs(f"{out_dir}/hyp", exist_ok=True)
     os.makedirs(f"{out_dir}/gt", exist_ok=True)
 
-    train_dataset, val_dataset, test_dataset = load_grandstaff_singleSys(data_path)
+    train_dataset, val_dataset, test_dataset = load_ctc_data(data_path)
 
     w2i, i2w = train_dataset.get_dictionaries()
 
-    train_dataloader = DataLoader(train_dataset, batch_size=1, num_workers=20, collate_fn=batch_preparation_img2seq, shuffle=True)
-    val_dataloader = DataLoader(val_dataset, batch_size=1, num_workers=20, collate_fn=batch_preparation_img2seq)
-    test_dataloader = DataLoader(test_dataset, batch_size=1, num_workers=20, collate_fn=batch_preparation_img2seq)
+    train_dataloader = DataLoader(train_dataset, batch_size=1, num_workers=20, collate_fn=batch_preparation_ctc, shuffle=True)
+    val_dataloader = DataLoader(val_dataset, batch_size=1, num_workers=20, collate_fn=batch_preparation_ctc)
+    test_dataloader = DataLoader(test_dataset, batch_size=1, num_workers=20, collate_fn=batch_preparation_ctc)
 
     max_height, max_width = train_dataset.get_max_hw()
     max_len = train_dataset.get_max_seqlen()
 
-    model = get_DAN_network(in_channels=1,
-                            max_height=max_height, max_width=max_width, 
-                            max_len=max_len, 
-                            out_categories=len(train_dataset.get_i2w()), w2i=w2i, i2w=i2w, model_name=model_name, out_dir=out_dir)
-    
+    model, model_torch = get_model(maxwidth=max_width, maxheight=max_height, in_channels=1, 
+                      out_size=len(i2w)+1, blank_idx=len(i2w), model_name="CNNT", output_path="out", i2w=i2w)
     
     wandb_logger = WandbLogger(project='ICDAR 2024', group=f"{corpus_name}", name=f"{model_name}", log_model=False)
 
@@ -53,11 +50,11 @@ def main(data_path, corpus_name=None, model_name=None, metric_to_watch=None):
                                    monitor=metric_to_watch, mode='min',
                                    save_top_k=1, verbose=True)
 
-    trainer = Trainer(max_epochs=5000, check_val_every_n_epoch=5, logger=wandb_logger, callbacks=[checkpointer, early_stopping])
+    trainer = Trainer(max_epochs=20, check_val_every_n_epoch=5, logger=wandb_logger, callbacks=[checkpointer, early_stopping])
     
     trainer.fit(model, train_dataloader, val_dataloader)
 
-    model = Poliphony_DAN.load_from_checkpoint(checkpointer.best_model_path)
+    model = LighntingE2EModelUnfolding.load_from_checkpoint(checkpointer.best_model_path, model=model_torch)
 
     trainer.test(model, test_dataloader)
 

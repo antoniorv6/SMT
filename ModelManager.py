@@ -6,12 +6,14 @@ import torch
 import torch.nn as nn
 import lightning.pytorch as L
 
+from transformers import SwinConfig, SwinModel
+from itertools import groupby
 from model.DANEncoder import Encoder
 from model.ConvNextEncoder import ConvNextEncoder
 from model.DANDecoder import Decoder
+from model.E2EScoreUnfolding import get_cnntrf_model
 from torchinfo import summary
 from eval_functions import compute_poliphony_metrics
-from torchmetrics.text.perplexity import Perplexity
 
 class PositionalEncoding2D(nn.Module):
 
@@ -42,11 +44,15 @@ class PositionalEncoding2D(nn.Module):
 
 @gin.configurable
 class DAN(L.LightningModule):
-    def __init__(self, maxh, maxw, maxlen, out_categories, padding_token, in_channels, w2i, i2w, out_dir, d_model=None, dim_ff=None, num_dec_layers=None, encoder_type="Normal") -> None:
+    def __init__(self, maxh, maxw, maxlen, out_categories, padding_token, in_channels, w2i, i2w, out_dir, d_model=None, dim_ff=None, num_dec_layers=None, encoder_type="Normal", swin_image_size=(256,800)) -> None:
         super().__init__()
-        
+        self.encoder_type = encoder_type
+        print(swin_image_size)
         if encoder_type == "NexT":
-            self.encoder = ConvNextEncoder(in_chans=1, depths=[3,3,9], dims=[64, 128, 256])
+            self.encoder = ConvNextEncoder(in_chans=in_channels, depths=[3,3,9], dims=[64, 128, 256])
+        if encoder_type == "Swin":
+            config = SwinConfig(image_size=swin_image_size, embed_dim=64, num_channels=in_channels, depths=[2,2,6] , num_heads=[4, 8, 16])
+            self.encoder = SwinModel(config, add_pooling_layer=False)
         else:
             self.encoder = Encoder(in_channels=in_channels)
 
@@ -72,39 +78,68 @@ class DAN(L.LightningModule):
         self.save_hyperparameters()
 
     def forward(self, x, y_pred):
-        encoder_output = self.encoder(x)
-        b, c, h, w = encoder_output.size()
-        reduced_size = [s.shape[:2] for s in encoder_output]
-        ylens = [len(sample) for sample in y_pred]
-        cache = None
+        if self.encoder_type == "Swin":
+            encoder_output = self.encoder(x).last_hidden_state
+            b, _, _ = encoder_output.size()
+            reduced_size = [s.shape[1] for s in encoder_output]
+            ylens = [len(sample) for sample in y_pred]
+            cache = None
 
-        pos_features = self.positional_2D(encoder_output)
-        features = torch.flatten(encoder_output, start_dim=2, end_dim=3).permute(2,0,1)
-        enhanced_features = features
-        enhanced_features = torch.flatten(pos_features, start_dim=2, end_dim=3).permute(2,0,1)
-        output, predictions, _, _, weights = self.decoder(features, enhanced_features, y_pred[:, :-1], reduced_size, 
-                                                           [max(ylens) for _ in range(b)], encoder_output.size(), 
-                                                           start=0, cache=cache, keep_all_weights=True)
+            features = encoder_output.permute(1, 0, 2).contiguous()
+            enhanced_features = encoder_output.permute(1, 0, 2).contiguous()
+
+            output, predictions, _, _, weights = self.decoder(features, enhanced_features, y_pred[:, :-1], reduced_size, 
+                                                               [max(ylens) for _ in range(b)], encoder_output.size(), 
+                                                               start=0, cache=cache, keep_all_weights=True, is_swin_output=True)
+        else:
+            encoder_output = self.encoder(x)
+            b, c, h, w = encoder_output.size()
+            reduced_size = [s.shape[:2] for s in encoder_output]
+            ylens = [len(sample) for sample in y_pred]
+            cache = None
+
+            pos_features = self.positional_2D(encoder_output)
+            features = torch.flatten(encoder_output, start_dim=2, end_dim=3).permute(2,0,1)
+            enhanced_features = features
+            enhanced_features = torch.flatten(pos_features, start_dim=2, end_dim=3).permute(2,0,1)
+        
+            output, predictions, _, _, weights = self.decoder(features, enhanced_features, y_pred[:, :-1], reduced_size, 
+                                                               [max(ylens) for _ in range(b)], encoder_output.size(), 
+                                                               start=0, cache=cache, keep_all_weights=True, is_swin_output=False)
     
         return output, predictions, cache, weights
 
 
     def forward_encoder(self, x):
+        if self.encoder_type == "Swin":
+            return self.encoder(x).last_hidden_state
         return self.encoder(x)
     
     def forward_decoder(self, encoder_output, last_preds, cache=None):
-        b, c, h, w = encoder_output.size()
-        reduced_size = [s.shape[:2] for s in encoder_output]
-        ylens = [len(sample) for sample in last_preds]
-        cache = cache
+        if self.encoder_type == "Swin":
+            b, _, _ = encoder_output.size()
+            reduced_size = [s.shape[1] for s in encoder_output]
+            ylens = [len(sample) for sample in last_preds]
+            cache = cache
 
-        pos_features = self.positional_2D(encoder_output)
-        features = torch.flatten(encoder_output, start_dim=2, end_dim=3).permute(2,0,1)
-        enhanced_features = features
-        enhanced_features = torch.flatten(pos_features, start_dim=2, end_dim=3).permute(2,0,1)
-        output, predictions, _, _, weights = self.decoder(features, enhanced_features, last_preds[:, :], reduced_size, 
+            features = encoder_output.permute(1, 0, 2).contiguous()
+            enhanced_features = encoder_output.permute(1, 0, 2).contiguous()
+            output, predictions, _, _, weights = self.decoder(features, enhanced_features, last_preds[:, :], reduced_size, 
                                                            [max(ylens) for _ in range(b)], encoder_output.size(), 
-                                                           start=0, cache=cache, keep_all_weights=True)
+                                                           start=0, cache=cache, keep_all_weights=True, is_swin_output=True)
+        else:
+            b, c, h, w = encoder_output.size()
+            reduced_size = [s.shape[:2] for s in encoder_output]
+            ylens = [len(sample) for sample in last_preds]
+            cache = cache
+
+            pos_features = self.positional_2D(encoder_output)
+            features = torch.flatten(encoder_output, start_dim=2, end_dim=3).permute(2,0,1)
+            enhanced_features = features
+            enhanced_features = torch.flatten(pos_features, start_dim=2, end_dim=3).permute(2,0,1)
+            output, predictions, _, _, weights = self.decoder(features, enhanced_features, last_preds[:, :], reduced_size, 
+                                                           [max(ylens) for _ in range(b)], encoder_output.size(), 
+                                                           start=0, cache=cache, keep_all_weights=True, is_swin_output=False)
     
         return output, predictions, cache, weights
     
@@ -213,95 +248,113 @@ class Poliphony_DAN(DAN):
 
         return ser
 
-@gin.configurable
-class DANLM(L.LightningModule):
-    def __init__(self, d_model, dim_ff, maxlen, num_dec_layers, out_categories, padding_token, w2i, i2w, out_dir):
-        super().__init__()
-        self.decoder = Decoder(d_model, dim_ff, num_dec_layers, maxlen, out_categories)
-
-        self.padding_token = padding_token
-
-        self.loss = nn.CrossEntropyLoss(ignore_index=self.padding_token)
-
-        self.valprobs = []
-        self.valids = []
-
-        self.w2i = w2i
+class LighntingE2EModelUnfolding(L.LightningModule):
+    def __init__(self, model, blank_idx, i2w, output_path) -> None:
+        super(LighntingE2EModelUnfolding, self).__init__()
+        self.model = model
+        self.loss = nn.CTCLoss(blank=blank_idx)
+        self.blank_idx = blank_idx
         self.i2w = i2w
+        self.accum_ed = 0
+        self.accum_len = 0
+        
+        self.dec_val_ex = []
+        self.gt_val_ex = []
 
-        self.maxlen = maxlen
-        self.out_dir=out_dir
-
-        self.decoder.set_lm_mode()
-
-        self.perplexities = []
-        self.perplexity_metric = Perplexity(ignore_index=padding_token)
+        self.out_path = output_path
 
         self.save_hyperparameters()
 
-    def forward(self, y_pred):
-        return self.forward_decoder(y_pred, cache=None)
-    
-    def forward_decoder(self, last_preds, cache=None):
-        b, l = last_preds.size()
-        ylens = [len(sample) for sample in last_preds]
-        cache = cache
-        output, predictions, _, _ = self.decoder.forward_lm(last_preds[:, :],
-                                                          [max(ylens) for _ in range(b)],
-                                                          start=0, cache=cache, keep_all_weights=True)
-    
-        return output, predictions, cache
+    def forward(self, input):
+        return self.model(input)
     
     def configure_optimizers(self):
-        return torch.optim.Adam(self.decoder.parameters(), lr=0.0001, amsgrad=False)
+        return torch.optim.Adam(self.model.parameters(), lr=1e-4)
 
-    def training_step(self, train_batch):
-        _, di, y = train_batch
-        output, predictions, cache = self.forward(di)
-    
-        loss = self.loss(predictions, y)
+    def training_step(self, train_batch, batch_idx):
+         X_tr, Y_tr, L_tr, T_tr = train_batch
+         predictions = self.forward(X_tr)
+         loss = self.loss(predictions, Y_tr, L_tr, T_tr)
+         self.log('loss', loss, on_epoch=True, batch_size=1, prog_bar=True)
+         return loss
+
+    def compute_prediction(self, batch):
+        X, Y, _, _ = batch
+        pred = self.forward(X)
+        pred = pred.permute(1,0,2).contiguous()
+        pred = pred[0]
+        out_best = torch.argmax(pred,dim=1)
+        out_best = [k for k, g in groupby(list(out_best))]
+        decoded = []
+        for c in out_best:
+            if c.item() != self.blank_idx:
+                decoded.append(c.item())
         
-        self.perplexities.append(self.perplexity_metric(predictions.permute(0,2,1).contiguous(), y).item())
+        decoded = [self.i2w[tok] for tok in decoded]
+        gt = [self.i2w[int(tok.item())] for tok in Y[0]]
 
-        self.log("loss", loss, on_epoch=True, batch_size=1, prog_bar=True)
-        return loss
-    
-    def on_train_epoch_end(self) -> None:
-        mean_perplexity = np.average(self.perplexities)
-        self.perplexities = []
-        self.log("train_perp", mean_perplexity, prog_bar=True)
-        return mean_perplexity
-    
+        return decoded, gt
+
     def validation_step(self, val_batch, batch_idx):
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        _, _, y = val_batch
-        cache = None
-        probabilities = []
-        y = y.squeeze(0)
+        dec, gt = self.compute_prediction(val_batch)
+        
+        dec = "".join(dec)
+        dec = dec.replace("<t>", "\t")
+        dec = dec.replace("<b>", "\n")
+        dec = dec.replace("<s>", " ")
 
-        predicted_sequence = torch.from_numpy(np.asarray([self.w2i['<bos>']])).to(device).unsqueeze(0)
+        gt = "".join(gt)
+        gt = gt.replace("<t>", "\t")
+        gt = gt.replace("<b>", "\n")
+        gt = gt.replace("<s>", " ")
 
-        for i in range(len(y)):
-            output, predictions, cache = self.forward_decoder(predicted_sequence.long(), cache=cache)
-            probabilities.append(predictions[:, :, -1].cpu().detach())
-            predicted_sequence = torch.cat([predicted_sequence, y[i].unsqueeze(0).unsqueeze(0)], dim=1)
+        self.dec_val_ex.append(dec)
+        self.gt_val_ex.append(gt)
 
-        self.perplexities.append(self.perplexity_metric(torch.cat(probabilities, dim=0).unsqueeze(0), y.unsqueeze(0).cpu()).item())
+    def on_validation_epoch_end(self):        
+        
+        cer, ser, ler = compute_poliphony_metrics(self.dec_val_ex, self.gt_val_ex)
 
-    def on_validation_epoch_end(self, name="val"):
-        mean_perplexity = np.average(self.perplexities)
-        self.log(f"{name}_perp", mean_perplexity, prog_bar=True)
-        self.perplexities = []
-        return mean_perplexity
-    
-    def on_test_epoch_end(self):
-        return self.on_validation_epoch_end(name="test")
-    
+        self.log('val_CER', cer)
+        self.log('val_SER', ser)
+        self.log('val_LER', ler)
+
+        return ser
+
     def test_step(self, test_batch, batch_idx):
-        self.validation_step(test_batch, batch_idx)
+        dec, gt = self.compute_prediction(test_batch)
+        
+        dec = "".join(dec)
+        dec = dec.replace("<t>", "\t")
+        dec = dec.replace("<b>", "\n")
+        dec = dec.replace("<s>", " ")
+
+        gt = "".join(gt)
+        gt = gt.replace("<t>", "\t")
+        gt = gt.replace("<b>", "\n")
+        gt = gt.replace("<s>", " ")
+
+        self.dec_val_ex.append(dec)
+        self.gt_val_ex.append(gt)
     
-    def get_dictionaries(self):
-        return self.w2i, self.i2w
+    def on_test_epoch_end(self) -> None:
+        cer, ser, ler = compute_poliphony_metrics(self.dec_val_ex, self.gt_val_ex)
+
+        self.log('val_CER', cer)
+        self.log('val_SER', ser)
+        self.log('val_LER', ler)
+
+        self.gt_val_ex = []
+        self.dec_val_ex = []
+
+        return ser
+
+def get_model(maxwidth, maxheight, in_channels, out_size, blank_idx, i2w, model_name, output_path):
+    model = get_cnntrf_model(maxwidth, maxheight, in_channels, out_size)
+    lighningModel = LighntingE2EModelUnfolding(model=model, blank_idx=blank_idx, i2w=i2w, output_path=output_path)
+    summary(lighningModel, input_size=([1, in_channels, maxheight, maxwidth]))
+    return lighningModel, model
+
     
 def get_DAN_network(in_channels, max_height, max_width, max_len, out_categories, w2i, i2w, out_dir, model_name=None):
     device=torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -316,15 +369,4 @@ def get_DAN_network(in_channels, max_height, max_width, max_len, out_categories,
     #sys.exit()
     summary(model, input_size=[(1,1,max_height,max_width), (1,max_len)], dtypes=[torch.float, torch.long])
 
-    return model
-
-def get_DAN_LM_network(d_model, dim_ff, max_len, out_categories, w2i, i2w, out_dir, model_name=None):
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = DANLM(d_model=d_model, num_dec_layers=8, 
-                          dim_ff=dim_ff, maxlen=max_len+1, out_categories=out_categories, 
-                          padding_token=w2i["<pad>"], w2i=w2i, i2w=i2w, out_dir=out_dir).to(device)
-    #with torch.no_grad():
-    #    _ = model(torch.randint(low=0, high=100,size=(1,max_len), device=device).long())
-    
-    summary(model, input_size=[(1, max_len)], dtypes=[torch.long])
     return model
