@@ -25,7 +25,7 @@ def load_set(path, base_folder="GrandStaff", fileformat="jpg", krn_type="bekrn",
                     krn_content = krnfile.read()
                     fname = ".".join(excerpt.split('.')[:-1])
                     img = cv2.imread(f"Data/{base_folder}/{fname}{fileformat}")
-                    if fixed_size:
+                    if fixed_size != None:
                         width = fixed_size[1]
                         height = fixed_size[0]
                     elif img.shape[1] > 3056:

@@ -5,8 +5,13 @@ main.corpus_name = "Camera_GrandStaff"
 
 load_grandstaff_singleSys.vocab_name = "GrandStaffGlobal"
 load_set.base_folder = "GrandStaff"
+<<<<<<< HEAD:config/GrandStaff/CNNSMT_Camera.gin
 load_set.fileformat = "_distorted.jpg"
 load_set.reduce_ratio = 0.85
+=======
+load_set.fileformat = ".jpg"
+load_set.fixed_size = [256,1024]
+>>>>>>> 4f43129fa3cd661dad2ac0dac140a3e48bcdd1f6:config/GrandStaff/DAN_Swin.gin
 
 ####
 DAN.d_model = 256
