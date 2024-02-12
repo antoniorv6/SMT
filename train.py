@@ -7,7 +7,7 @@ import torch.nn as nn
 from loguru import logger
 from data import load_grandstaff_singleSys, batch_preparation_img2seq
 from torch.utils.data import DataLoader
-from ModelManager import get_DAN_network, Poliphony_DAN
+from ModelManager import get_SMT, SMT
 from lightning.pytorch import Trainer
 from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.pytorch.loggers import WandbLogger
@@ -39,13 +39,10 @@ def main(data_path, corpus_name=None, model_name=None, metric_to_watch=None):
     max_height, max_width = train_dataset.get_max_hw()
     max_len = train_dataset.get_max_seqlen()
 
-    model = get_DAN_network(in_channels=1,
+    model = get_SMT(in_channels=1,
                             max_height=max_height, max_width=max_width, 
                             max_len=max_len, 
                             out_categories=len(train_dataset.get_i2w()), w2i=w2i, i2w=i2w, model_name=model_name, out_dir=out_dir)
-    
-    import sys
-    sys.exit()
     
     wandb_logger = WandbLogger(project='ICDAR 2024', group=f"{corpus_name}", name=f"{model_name}", log_model=False)
 
@@ -59,7 +56,7 @@ def main(data_path, corpus_name=None, model_name=None, metric_to_watch=None):
     
     trainer.fit(model, train_dataloader, val_dataloader)
 
-    model = Poliphony_DAN.load_from_checkpoint(checkpointer.best_model_path)
+    model = SMT.load_from_checkpoint(checkpointer.best_model_path)
 
     trainer.test(model, test_dataloader)
 

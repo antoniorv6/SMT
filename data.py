@@ -16,7 +16,6 @@ from torchvision import transforms
 def load_set(path, base_folder="GrandStaff", fileformat="jpg", krn_type="bekrn", reduce_ratio=0.5, fixed_size=None):
     x = []
     y = []
-    num = 0
     with open(path) as datafile:
         lines = datafile.readlines()
         for line in progress.track(lines):
@@ -39,9 +38,6 @@ def load_set(path, base_folder="GrandStaff", fileformat="jpg", krn_type="bekrn",
                     img = cv2.resize(img, (width, height))
                     y.append([content + '\n' for content in krn_content.split("\n")])
                     x.append(img)
-                    #num +=1
-                    #if num > 100:
-                    #    break
             except Exception:
                 print(f'Error reading Data/GrandStaff/{excerpt}')
 

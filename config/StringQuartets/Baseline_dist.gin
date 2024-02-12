@@ -1,10 +1,10 @@
 main.data_path = "Data/Quartets/partitions_quartets/"
-main.model_name = "CNNT_CTC"
+main.model_name = "CRNN_CTC"
 main.metric_to_watch = "val_SER"
 main.corpus_name = "Degraded_Quartets"
 
 load_ctc_data.vocab_name = "QuartetsGlobal"
 load_set.base_folder = "Quartets"
 load_set.fileformat = "_distorted.png"
-load_set.reduce_ratio = 0.4
+load_set.reduce_ratio = 0.5
 load_set.krn_type = "krn"

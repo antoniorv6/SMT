@@ -8,10 +8,10 @@ import lightning.pytorch as L
 
 from transformers import SwinConfig, SwinModel
 from itertools import groupby
-from model.DANEncoder import Encoder
+from model.ConvEncoder import Encoder
 from model.ConvNextEncoder import ConvNextEncoder
-from model.DANDecoder import Decoder
-from model.E2EScoreUnfolding import get_cnntrf_model
+from model.Decoder import Decoder
+from model.E2EScoreUnfolding import get_rcnn_model
 from torchinfo import summary
 from eval_functions import compute_poliphony_metrics
 
@@ -43,19 +43,20 @@ class PositionalEncoding2D(nn.Module):
         return self.pe[:, :, :h, :w].to(device)
 
 @gin.configurable
-class DAN(L.LightningModule):
+class SequentialTransformer(L.LightningModule):
     def __init__(self, maxh, maxw, maxlen, out_categories, padding_token, in_channels, w2i, i2w, out_dir, d_model=None, dim_ff=None, num_dec_layers=None, encoder_type="Normal", swin_image_size=(256,800)) -> None:
         super().__init__()
         self.encoder_type = encoder_type
         if encoder_type == "NexT":
             self.encoder = ConvNextEncoder(in_chans=in_channels, depths=[3,3,9], dims=[64, 128, 256])
-        if encoder_type == "Swin":
+        elif encoder_type == "Swin":
             config = SwinConfig(image_size=swin_image_size, embed_dim=32, in_channels=in_channels, num_heads=[4, 8, 16, 32])
             self.encoder = SwinModel(config, add_pooling_layer=False) 
         else:
             self.encoder = Encoder(in_channels=in_channels)
 
         self.decoder = Decoder(d_model, dim_ff, num_dec_layers, maxlen, out_categories)
+        
         self.positional_2D = PositionalEncoding2D(d_model, maxh, maxw)
 
         self.padding_token = padding_token
@@ -197,7 +198,7 @@ class DAN(L.LightningModule):
         self.valpredictions.append(dec)
         self.valgts.append(gt)
 
-class Poliphony_DAN(DAN):
+class SMT(SequentialTransformer):
     def __init__(self, maxh, maxw, maxlen, out_categories, padding_token, in_channels, w2i, i2w, out_dir) -> None:
         super().__init__(maxh, maxw, maxlen, out_categories, padding_token, in_channels, w2i, i2w, out_dir)
     
@@ -221,14 +222,6 @@ class Poliphony_DAN(DAN):
 
     def on_test_epoch_end(self):
         cer, ser, ler = compute_poliphony_metrics(self.valpredictions, self.valgts)
-
-        #for index, sample in enumerate(self.valpredictions):
-        #    with open(f"{self.out_dir}/hyp/{index}.krn", "w+") as krnfile:
-        #        krnfile.write(sample)
-        #
-        #for index, sample in enumerate(self.valgts):
-        #    with open(f"{self.out_dir}/gt/{index}.krn", "w+") as krnfile:
-        #        krnfile.write(sample)
 
         self.log('test_CER', cer)
         self.log('test_SER', ser)
@@ -341,15 +334,15 @@ class LighntingE2EModelUnfolding(L.LightningModule):
         return ser
 
 def get_model(maxwidth, maxheight, in_channels, out_size, blank_idx, i2w, model_name, output_path):
-    model = get_cnntrf_model(maxwidth, maxheight, in_channels, out_size)
+    model = get_rcnn_model(maxwidth, maxheight, in_channels, out_size)
     lighningModel = LighntingE2EModelUnfolding(model=model, blank_idx=blank_idx, i2w=i2w, output_path=output_path)
     summary(lighningModel, input_size=([1, in_channels, maxheight, maxwidth]))
     return lighningModel, model
 
     
-def get_DAN_network(in_channels, max_height, max_width, max_len, out_categories, w2i, i2w, out_dir, model_name=None):
+def get_SMT(in_channels, max_height, max_width, max_len, out_categories, w2i, i2w, out_dir, model_name=None):
     device=torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    model = Poliphony_DAN(in_channels=in_channels, maxh=(max_height//16)+1, maxw=(max_width//8)+1, 
+    model = SMT(in_channels=in_channels, maxh=(max_height//16)+1, maxw=(max_width//8)+1, 
                 maxlen=max_len+1, out_categories=out_categories, 
                 padding_token=0, w2i=w2i, i2w=i2w, out_dir=out_dir).to(device)
     

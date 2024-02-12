@@ -362,7 +362,6 @@ def get_fcn_model(maxwidth, maxheight, in_channels, out_size, maxlen=None):
     
     return model
 
-@gin.configurable
 def get_rcnn_model(maxwidth, maxheight, in_channels, out_size, weights_path=None, maxlen=None):
     model = E2EScore_CRNN(in_channels=in_channels, out_cats=out_size)
     summary(model, input_size=[(1,in_channels,maxheight,maxwidth)], dtypes=[torch.float])

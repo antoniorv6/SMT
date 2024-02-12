@@ -40,7 +40,7 @@ def main(data_path, corpus_name=None, model_name=None, metric_to_watch=None):
     max_len = train_dataset.get_max_seqlen()
 
     model, model_torch = get_model(maxwidth=max_width, maxheight=max_height, in_channels=1, 
-                      out_size=len(i2w)+1, blank_idx=len(i2w), model_name="CNNT", output_path="out", i2w=i2w)
+                      out_size=len(i2w)+1, blank_idx=len(i2w), model_name="CRNN", output_path="out", i2w=i2w)
     
     wandb_logger = WandbLogger(project='ICDAR 2024', group=f"{corpus_name}", name=f"{model_name}", log_model=False)
 

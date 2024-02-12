@@ -1,5 +1,5 @@
 main.data_path = "Data/GrandStaff/partitions_grandstaff/types/"
-main.model_name = "DAN_B"
+main.model_name = "CNNSMT"
 main.metric_to_watch = "val_SER"
 main.corpus_name = "Camera_GrandStaff"
 

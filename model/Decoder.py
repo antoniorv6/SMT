@@ -76,7 +76,9 @@ class MHA(nn.Module):
             attn_output_weigths = attn_weights.view(b, self.num_heads, target_len, source_len)
             attn_output_weigths = attn_weights.masked_fill(key_pad_mask.unsqueeze(1).unsqueeze(2), float("-inf"))
             attn_output_weigths = attn_weights.view(b*self.num_heads, target_len, source_len)
-        
+        else:
+            attn_output_weigths = attn_weights#attn_weights.view(b, self.num_heads, target_len, source_len)
+            
         attn_output_weigths_raw = self.softmax(attn_output_weigths)
         attn_output_weigths = self.dropout(attn_output_weigths_raw)
 
@@ -288,7 +290,7 @@ class Decoder(nn.Module):
     def set_transcription_mode(self):
         self.decoder.set_transcription_mode()
 
-    def forward(self, raw_features_1D, enhanced_features_1D, tokens, reduced_size, token_len, features_size, start=0, hidden_predict=None, num_pred=None, cache=None, keep_all_weights=True, token_line=None, token_pg=None):
+    def forward(self, raw_features_1D, enhanced_features_1D, tokens, reduced_size, token_len, features_size, start=0, hidden_predict=None, num_pred=None, cache=None, keep_all_weights=True, token_line=None, token_pg=None, is_swin_output=False):
         
         device = raw_features_1D.device
         
@@ -312,7 +314,10 @@ class Decoder(nn.Module):
         memory_mask = None
 
         key_target_mask = self.generate_token_mask(token_len, tokens.size(), device)
-        key_memory_mask = self.generate_enc_mask(reduced_size, features_size, device)
+        if is_swin_output:
+            key_memory_mask = None# self.generate_enc_mask(reduced_size, features_size, device)
+        else:
+            key_memory_mask = self.generate_enc_mask(reduced_size, features_size, device)
 
         target_mask = target_mask[-num_pred:, -num_tokens_to_keep:]
         key_target_mask = key_target_mask[:, -num_tokens_to_keep:]

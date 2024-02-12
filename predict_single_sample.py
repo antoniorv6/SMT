@@ -7,6 +7,7 @@ from torchvision import transforms
 from visualizer.WeightsVisualizer import DAN_WeightsVisualizer
 from ModelManager import Poliphony_DAN
 from data import load_grandstaff_singleSys
+from eval_functions import compute_poliphony_metrics
 
 @gin.configurable
 def main(stage=None, data_path=None, corpus_name=None, model_name=None, metric_to_watch=None):
@@ -16,7 +17,7 @@ def main(stage=None, data_path=None, corpus_name=None, model_name=None, metric_t
     idx = 0
     visualizer_module = DAN_WeightsVisualizer(frames_path="frames/", animation_path="animation/")
 
-    img = cv2.imread("original_m-66-69_distorted.jpg", 3)
+    img = cv2.imread("original_m-25-28_distorted.jpg", 3)
     if img.shape[1] > 3056:
         width = int(np.ceil(3056 * 0.85))
         height = int(np.ceil(max(img.shape[0], 256) * 0.85))
@@ -34,8 +35,10 @@ def main(stage=None, data_path=None, corpus_name=None, model_name=None, metric_t
     tensor_img = transform(img)
     
     seq = ""
-    with open("original_m-66-69.krn") as krnfile:
+    with open("original_m-25-28.krn") as krnfile:
         seq = krnfile.read()
+    
+    gtseq = seq
 
     #seq = "".join(seq[1:-1])
     seq = seq.replace(" ", "\t-\t")
@@ -47,7 +50,7 @@ def main(stage=None, data_path=None, corpus_name=None, model_name=None, metric_t
     text_sequence = []
     global_weights = []
     self_weights = []
-    model = Poliphony_DAN.load_from_checkpoint("weights/Camera_GrandStaff/DAN_B.ckpt")
+    model = Poliphony_DAN.load_from_checkpoint("DAN_Next.ckpt")
     model.eval()
 
     w2i, i2w = model.w2i, model.i2w
@@ -75,18 +78,22 @@ def main(stage=None, data_path=None, corpus_name=None, model_name=None, metric_t
     attention_weights = torch.tensor(attention_weights).squeeze(1).detach().numpy()
     zero_weights = np.zeros((1, attention_weights.shape[1], attention_weights.shape[2]))
     attention_weights = np.concatenate([zero_weights, attention_weights, zero_weights], axis=0)
-    #with open("prediction.krn", "w") as predfile:
-    #    text_sequence = "".join(text_sequence).replace("<t>", "\t")
-    #    text_sequence = text_sequence.replace("<b>", "\n")
-    #    text_sequence = text_sequence.replace("<s>", " ")
-    #    predfile.write(text_sequence)
+    
+    with open("prediction_piano.krn", "w") as predfile:
+        text_sequence = "".join(text_sequence).replace("<t>", "\t")
+        text_sequence = text_sequence.replace("<b>", "\n")
+        text_sequence = text_sequence.replace("<s>", " ").replace('**ekern_1.0', '**kern')
+        predfile.write(text_sequence)
+    
+    gtseq = gtseq.replace("<t>", "\t").replace("<b>", "\n").replace("<s>", " ")
+    print(compute_poliphony_metrics([text_sequence],[gtseq]))
 
     #try:
-    visualizer_module.render(x=img, y=seq, predicted_seq=text_sequence, self_weights=self_weights, attn_weights=attention_weights, animation_name=str(idx))
+    #visualizer_module.render(x=img, y=seq, predicted_seq=text_sequence, self_weights=self_weights, attn_weights=attention_weights, animation_name=str(idx))
     #except:
     #    logger.error(f"Error rendering {idx} video")
-    idx += 1
+    #idx += 1
 
 if __name__ == "__main__":
-    gin.parse_config_file("config/GrandStaff/DAN_B_Dist.gin")
+    gin.parse_config_file("config/GrandStaff/DAN_NexT_Dist.gin")
     main()
