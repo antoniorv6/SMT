@@ -5,7 +5,7 @@
 
 <h1 align='center'>Sheet Music Transformer: End-To-End Optical Music Recognition Beyond Monophonic Transcription</h1>
 
-<h4 align='center'>Full text coming soon<a href='' target='_blank'></a>.</h4>
+<h4 align='center'><a href='https://arxiv.org/abs/2402.07596' target='_blank'>Full-text preprint</a>.</h4>
 
 <p align='center'>
   <img src='https://img.shields.io/badge/python-3.9.0-orange' alt='Python'>
@@ -34,7 +34,17 @@ This GitHub repository contains the implementation of the Sheet Music Transfomrm
 **Usage instructions coming soon**
 
 ## Citations
-**Coming soon**
+
+```bibtex
+@misc{riosvila2024SMT,
+	title        = {Sheet Music Transformer: End-To-End Optical Music Recognition Beyond Monophonic Transcription},
+	author       = {Antonio Ríos-Vila and Jorge Calvo-Zaragoza and Thierry Paquet},
+	year         = 2024,
+	eprint       = {2402.07596},
+	archiveprefix = {arXiv},
+	primaryclass = {cs.CV}
+}
+```
 
 ## Acknowledgments
 
