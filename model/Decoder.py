@@ -74,8 +74,8 @@ class MHA(nn.Module):
 
         if key_pad_mask is not None:
             attn_output_weigths = attn_weights.view(b, self.num_heads, target_len, source_len)
-            attn_output_weigths = attn_weights.masked_fill(key_pad_mask.unsqueeze(1).unsqueeze(2), float("-inf"))
-            attn_output_weigths = attn_weights.view(b*self.num_heads, target_len, source_len)
+            attn_output_weigths = attn_output_weigths.masked_fill(key_pad_mask.unsqueeze(1).unsqueeze(2), float("-inf"))
+            attn_output_weigths = attn_output_weigths.view(b*self.num_heads, target_len, source_len)
         else:
             attn_output_weigths = attn_weights#attn_weights.view(b, self.num_heads, target_len, source_len)
             
@@ -270,10 +270,10 @@ class DecoderStack(nn.Module):
 
 class Decoder(nn.Module):
 
-    def __init__(self, d_model, dim_ff, n_layers, maxlen, out_categories, attention_window=100) -> None:
+    def __init__(self, d_model, dim_ff, n_layers, maxlen, out_categories, attention_window=1) -> None:
         super(Decoder, self).__init__()
         self.dropout = nn.Dropout(0.1)
-        self.dec_attn_win = maxlen
+        self.dec_attn_win = attention_window
         self.positional_1D = PositionalEncoding1D(d_model, maxlen)
 
         self.decoder = DecoderStack(num_dec_layers=n_layers, d_model=d_model, dim_ff=dim_ff)

@@ -50,9 +50,6 @@ class SequentialTransformer(L.LightningModule):
         print(swin_image_size)
         if encoder_type == "NexT":
             self.encoder = ConvNextEncoder(in_chans=in_channels, depths=[3,3,9], dims=[64, 128, 256])
-        elif encoder_type == "Swin":
-            config = SwinConfig(image_size=swin_image_size, embed_dim=32, in_channels=in_channels, num_heads=[4, 8, 16, 32])
-            self.encoder = SwinModel(config, add_pooling_layer=False) 
         #if encoder_type == "Swin":
         #    config = SwinConfig(image_size=swin_image_size, embed_dim=64, num_channels=in_channels, depths=[2,2,6] , num_heads=[4, 8, 16])
         #    self.encoder = SwinModel(config, add_pooling_layer=False)
