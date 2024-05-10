@@ -93,7 +93,7 @@ python test.py --config <path-to-config>
 ```
 
 # Transcribing a single sample
-The repository also has the code for testing the transcription output of a single sample. To do so, please refere to the ```transcribe_single_sample.py``` file. The program asks for a sample to be transcribed and the weights of the SMT that are intended to be used. The program also requires the config file of the model's weights you are using (sth to be improved in next iterations, sorry!).
+The repository also has the code for testing the transcription output of a single sample. To do so, please refere to the ```transcribe_single_sample.py``` file. The program asks for a sample to be transcribed and the weights of the SMT that are intended to be used. The program also requires the config file of the model's weights you are using.
 
 ```sh
 
