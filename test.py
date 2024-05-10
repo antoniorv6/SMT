@@ -5,7 +5,7 @@ import numpy as np
 from rich import progress
 from torchvision import transforms
 from torch.utils.data import DataLoader
-from ModelManager import Poliphony_DAN
+from ModelManager import SMT
 from data import GrandStaffSingleSystem, batch_preparation_img2seq
 from eval_functions import compute_poliphony_metrics
 
@@ -16,7 +16,7 @@ def main(stage=None, data_path=None, corpus_name=None, model_name=None, metric_t
 
     test_dataset = GrandStaffSingleSystem(data_path=f"{data_path}/test.txt")
     test_dataloader = DataLoader(test_dataset, batch_size=1, num_workers=20, collate_fn=batch_preparation_img2seq)
-    model = Poliphony_DAN.load_from_checkpoint("weights/Degraded_Quartets/DAN_Next.ckpt")
+    model = SMT.load_from_checkpoint("weights/Degraded_Quartets/DAN_Next.ckpt")
     model.eval()
     w2i, i2w = model.w2i, model.i2w
     idx = 0
