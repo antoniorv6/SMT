@@ -9,6 +9,6 @@ load_set.fileformat = "_distorted.jpg"
 load_set.reduce_ratio = 0.85
 
 ####
-DAN.d_model = 256
-DAN.dim_ff = 256
-DAN.num_dec_layers = 8
+SequentialTransformer.d_model = 256
+SequentialTransformer.dim_ff = 256
+SequentialTransformer.num_dec_layers = 8

@@ -50,9 +50,6 @@ class SequentialTransformer(L.LightningModule):
         print(swin_image_size)
         if encoder_type == "NexT":
             self.encoder = ConvNextEncoder(in_chans=in_channels, depths=[3,3,9], dims=[64, 128, 256])
-        #if encoder_type == "Swin":
-        #    config = SwinConfig(image_size=swin_image_size, embed_dim=64, num_channels=in_channels, depths=[2,2,6] , num_heads=[4, 8, 16])
-        #    self.encoder = SwinModel(config, add_pooling_layer=False)
         else:
             self.encoder = Encoder(in_channels=in_channels)
 
@@ -79,35 +76,20 @@ class SequentialTransformer(L.LightningModule):
         self.save_hyperparameters()
 
     def forward(self, x, y_pred):
-        if self.encoder_type == "Swin":
-            encoder_output = self.encoder(x).last_hidden_state
-            b, _, _ = encoder_output.size()
-            reduced_size = [s.shape[1] for s in encoder_output]
-            ylens = [len(sample) for sample in y_pred]
-            cache = None
-
-            features = encoder_output.permute(1, 0, 2).contiguous()
-            enhanced_features = encoder_output.permute(1, 0, 2).contiguous()
-
-            output, predictions, _, _, weights = self.decoder(features, enhanced_features, y_pred[:, :-1], reduced_size, 
-                                                               [max(ylens) for _ in range(b)], encoder_output.size(), 
-                                                               start=0, cache=cache, keep_all_weights=True, is_swin_output=True)
-        else:
-            encoder_output = self.encoder(x)
-            b, c, h, w = encoder_output.size()
-            reduced_size = [s.shape[:2] for s in encoder_output]
-            ylens = [len(sample) for sample in y_pred]
-            cache = None
-
-            pos_features = self.positional_2D(encoder_output)
-            features = torch.flatten(encoder_output, start_dim=2, end_dim=3).permute(2,0,1)
-            enhanced_features = features
-            enhanced_features = torch.flatten(pos_features, start_dim=2, end_dim=3).permute(2,0,1)
-        
-            output, predictions, _, _, weights = self.decoder(features, enhanced_features, y_pred[:, :-1], reduced_size, 
-                                                               [max(ylens) for _ in range(b)], encoder_output.size(), 
-                                                               start=0, cache=cache, keep_all_weights=True, is_swin_output=False)
+        encoder_output = self.encoder(x)
+        b, c, h, w = encoder_output.size()
+        reduced_size = [s.shape[:2] for s in encoder_output]
+        ylens = [len(sample) for sample in y_pred]
+        cache = None
+        pos_features = self.positional_2D(encoder_output)
+        features = torch.flatten(encoder_output, start_dim=2, end_dim=3).permute(2,0,1)
+        enhanced_features = features
+        enhanced_features = torch.flatten(pos_features, start_dim=2, end_dim=3).permute(2,0,1)
     
+        output, predictions, _, _, weights = self.decoder(features, enhanced_features, y_pred[:, :-1], reduced_size, 
+                                                           [max(ylens) for _ in range(b)], encoder_output.size(), 
+                                                           start=0, cache=cache, keep_all_weights=True, is_swin_output=False)
+
         return output, predictions, cache, weights
 
 
@@ -117,30 +99,18 @@ class SequentialTransformer(L.LightningModule):
         return self.encoder(x)
     
     def forward_decoder(self, encoder_output, last_preds, cache=None):
-        if self.encoder_type == "Swin":
-            b, _, _ = encoder_output.size()
-            reduced_size = [s.shape[1] for s in encoder_output]
-            ylens = [len(sample) for sample in last_preds]
-            cache = cache
-
-            features = encoder_output.permute(1, 0, 2).contiguous()
-            enhanced_features = encoder_output.permute(1, 0, 2).contiguous()
-            output, predictions, _, _, weights = self.decoder(features, enhanced_features, last_preds[:, :], reduced_size, 
-                                                           [max(ylens) for _ in range(b)], encoder_output.size(), 
-                                                           start=0, cache=cache, keep_all_weights=True, is_swin_output=True)
-        else:
-            b, c, h, w = encoder_output.size()
-            reduced_size = [s.shape[:2] for s in encoder_output]
-            ylens = [len(sample) for sample in last_preds]
-            cache = cache
-
-            pos_features = self.positional_2D(encoder_output)
-            features = torch.flatten(encoder_output, start_dim=2, end_dim=3).permute(2,0,1)
-            enhanced_features = features
-            enhanced_features = torch.flatten(pos_features, start_dim=2, end_dim=3).permute(2,0,1)
-            output, predictions, _, _, weights = self.decoder(features, enhanced_features, last_preds[:, :], reduced_size, 
-                                                           [max(ylens) for _ in range(b)], encoder_output.size(), 
-                                                           start=0, cache=cache, keep_all_weights=True, is_swin_output=False)
+        b, c, h, w = encoder_output.size()
+        reduced_size = [s.shape[:2] for s in encoder_output]
+        ylens = [len(sample) for sample in last_preds]
+        cache = cache
+        
+        pos_features = self.positional_2D(encoder_output)
+        features = torch.flatten(encoder_output, start_dim=2, end_dim=3).permute(2,0,1)
+        enhanced_features = features
+        enhanced_features = torch.flatten(pos_features, start_dim=2, end_dim=3).permute(2,0,1)
+        output, predictions, _, _, weights = self.decoder(features, enhanced_features, last_preds[:, :], reduced_size, 
+                                                       [max(ylens) for _ in range(b)], encoder_output.size(), 
+                                                       start=0, cache=cache, keep_all_weights=True, is_swin_output=False)
     
         return output, predictions, cache, weights
     

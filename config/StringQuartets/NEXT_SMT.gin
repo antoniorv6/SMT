@@ -9,7 +9,7 @@ load_set.fileformat = "_distorted.png"
 load_set.krn_type = "krn"
 
 ####
-DAN.encoder_type = "NexT"
-DAN.d_model = 256
-DAN.dim_ff = 256
-DAN.num_dec_layers = 8
+SequentialTransformer.encoder_type = "NexT"
+SequentialTransformer.d_model = 256
+SequentialTransformer.dim_ff = 256
+SequentialTransformer.num_dec_layers = 8
