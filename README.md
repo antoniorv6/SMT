@@ -28,7 +28,7 @@
 
 ## About
 
-This GitHub repository contains the implementation of the Sheet Music Transfomrmer (SMT), novel model for Optical Music Recognition (OMR) beyond monophonic level transcription. Unlike traditional approaches that primarily leverage monophonic transcription techniques for complex score layouts, the SMT model overcomes these limitations by offering a robust image-to-sequence solution for transcribing polyphonic musical scores directly from images.
+This GitHub repository contains the implementation of the Sheet Music Transfomrmer (SMT), a novel model for Optical Music Recognition (OMR) beyond monophonic level transcription. Unlike traditional approaches that primarily leverage monophonic transcription techniques for complex score layouts, the SMT model overcomes these limitations by offering a robust image-to-sequence solution for transcribing polyphonic musical scores directly from images.
 
 <p align="center">
   <img src="graphics/SMT.jpg" alt="content" style="border: 1px solid black; width: 800px;">
