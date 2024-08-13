@@ -1,0 +1,10 @@
+{
+    "data":{
+      "data_path": "Data/GrandStaff/partitions_grandstaff/types/",
+      "batch_size": 1,
+      "vocab_name": "GrandStaff",
+      "img_format": "_distorted.jpg",
+      "num_workers": 20,
+      "reduce_ratio": 0.85
+    }
+}

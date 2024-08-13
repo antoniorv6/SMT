@@ -1,19 +1,19 @@
 import random
 import re
 import cv2
-import gin
 import torch
 import numpy as np
 import cv2
 
+from ExperimentConfig import ExperimentConfig
 from data_augmentation.data_augmentation import augment, convert_img_to_tensor
 from utils import check_and_retrieveVocabulary
 from rich import progress
+from lightning import LightningDataModule
 from torch.utils.data import Dataset
 from torchvision import transforms
 
-@gin.configurable
-def load_set(path, base_folder="GrandStaff", fileformat="jpg", krn_type="bekrn", reduce_ratio=0.5, fixed_size=None):
+def load_set(path, base_folder="GrandStaff", fileformat=".jpg", krn_type="bekrn", reduce_ratio=1.0, fixed_size=None):
     x = []
     y = []
     with open(path) as datafile:
@@ -42,28 +42,6 @@ def load_set(path, base_folder="GrandStaff", fileformat="jpg", krn_type="bekrn",
                 print(f'Error reading Data/GrandStaff/{excerpt}')
 
     return x, y
-
-def batch_preparation_ctc(data):
-    images = [sample[0] for sample in data]
-    gt = [sample[1] for sample in data]
-    L = [sample[2] for sample in data]
-    T = [sample[3] for sample in data]
-
-    max_image_width = max([img.shape[2] for img in images])
-    max_image_height = max([img.shape[1] for img in images])
-
-    X_train = torch.ones(size=[len(images), 1, max_image_height, max_image_width], dtype=torch.float32)
-
-    for i, img in enumerate(images):
-        c, h, w = img.size()
-        X_train[i, :, :h, :w] = img
-    
-    max_length_seq = max([len(w) for w in gt])
-    Y_train = torch.zeros(size=[len(gt),max_length_seq])
-    for i, seq in enumerate(gt):
-        Y_train[i, 0:len(seq)] = torch.from_numpy(np.asarray([char for char in seq]))
-
-    return X_train, Y_train, L, T
 
 def batch_preparation_img2seq(data):
     images = [sample[0] for sample in data]
@@ -193,105 +171,33 @@ class GrandStaffSingleSystem(OMRIMG2SEQDataset):
                     
             Y[idx] = self.erase_numbers_in_tokens_with_equal(['<bos>'] + krn + ['<eos>'])
         return Y
+
+class GrandStaffDataset(LightningDataModule):
+    def __init__(self, config:ExperimentConfig) -> None:
+        super().__init__()
+        self.data_path = config.data_path
+        self.vocab_name = config.vocab_name
+        self.batch_size = config.batch_size
+        self.num_workers = config.num_workers
+        self.train_set = GrandStaffSingleSystem(data_path=f"{self.data_path}/train.txt", augment=True)
+        self.val_set = GrandStaffSingleSystem(data_path=f"{self.data_path}/val.txt")
+        self.test_set = GrandStaffSingleSystem(data_path=f"{self.data_path}/test.txt")
+
+        w2i, i2w = check_and_retrieveVocabulary([self.train_set.get_gt(), self.val_set.get_gt(), self.test_set.get_gt()], "vocab/", f"{self.vocab_name}")
+
+        self.train_set.set_dictionaries(w2i, i2w)
+        self.val_set.set_dictionaries(w2i, i2w)
+        self.test_set.set_dictionaries(w2i, i2w)
     
-class CTCDataset(Dataset):
-    def __init__(self, data_path, augment=False) -> None:
-        self.x, self.y = load_set(data_path)
-        self.x = self.preprocess_images(self.x)
-        self.y = self.preprocess_gt(self.y)
-        self.tensorTransform = transforms.Compose([
-            transforms.ToPILImage(),
-            transforms.Grayscale(),
-            transforms.ToTensor()]
-        )
+    def train_dataloader(self):
+        return torch.utils.data.DataLoader(self.train_set, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=True, collate_fn=batch_preparation_img2seq)
     
-    def preprocess_images(self, X):
-        for idx, sample in enumerate(X):
-            X[idx] = cv2.rotate(sample, cv2.ROTATE_90_CLOCKWISE)
-
-        return X
+    def val_dataloader(self):
+        return torch.utils.data.DataLoader(self.val_set, batch_size=self.batch_size, num_workers=self.num_workers, collate_fn=batch_preparation_img2seq)
     
-    def preprocess_gt(self, Y):
-        for idx, krn in enumerate(Y):
-            krn = "".join(krn)
-            krn = krn.replace(" ", " <s> ")
-            krn = krn.replace("·", "")
-            krn = krn.replace("\t", " <t> ")
-            krn = krn.replace("\n", " <b> ")
-            krn = krn.split(" ")
-                    
-            Y[idx] = self.erase_numbers_in_tokens_with_equal(krn)
-        return Y
+    def test_dataloader(self):
+        return torch.utils.data.DataLoader(self.test_set, batch_size=self.batch_size, num_workers=self.num_workers, collate_fn=batch_preparation_img2seq)
 
-    def __len__(self):
-        return len(self.x)
-    
-    def erase_numbers_in_tokens_with_equal(self, tokens):
-        return [re.sub(r'(?<=\=)\d+', '', token) for token in tokens]
-
-    def __getitem__(self, index):
-        image = self.tensorTransform(self.x[index])
-        gt = torch.from_numpy(np.asarray([self.w2i[token] for token in self.y[index]]))
-        
-        return image, gt, (image.shape[2] // 8) * (image.shape[1] // 16), len(gt)
-
-    def get_max_hw(self):
-        m_width = np.max([img.shape[1] for img in self.x])
-        m_height = np.max([img.shape[0] for img in self.x])
-
-        return m_height, m_width
-    
-    def get_max_seqlen(self):
-        return np.max([len(seq) for seq in self.y])
-
-    def vocab_size(self):
-        return len(self.w2i)
-
-    def get_gt(self):
-        return self.y
-    
-    def set_dictionaries(self, w2i, i2w):
-        self.w2i = w2i
-        self.i2w = i2w
-        self.padding_token = w2i['<pad>']
-    
-    def get_dictionaries(self):
-        return self.w2i, self.i2w
-    
-    def get_i2w(self):
-        return self.i2w
-
-@gin.configurable
-def load_grandstaff_singleSys(data_path, vocab_name, val_path=None):
-    if val_path == None:
-        val_path = data_path
-    train_dataset = GrandStaffSingleSystem(data_path=f"{data_path}/train.txt", augment=True)
-    val_dataset = GrandStaffSingleSystem(data_path=f"{val_path}/val.txt")
-    test_dataset = GrandStaffSingleSystem(data_path=f"{data_path}/test.txt")
-
-    w2i, i2w = check_and_retrieveVocabulary([train_dataset.get_gt(), val_dataset.get_gt(), test_dataset.get_gt()], "vocab/", f"{vocab_name}")
-
-    train_dataset.set_dictionaries(w2i, i2w)
-    val_dataset.set_dictionaries(w2i, i2w)
-    test_dataset.set_dictionaries(w2i, i2w)
-
-    return train_dataset, val_dataset, test_dataset
-
-@gin.configurable
-def load_ctc_data(data_path, vocab_name, val_path=None):
-    if val_path == None:
-        val_path = data_path
-    train_dataset = CTCDataset(data_path=f"{data_path}/train.txt", augment=True)
-    val_dataset = CTCDataset(data_path=f"{val_path}/val.txt")
-    test_dataset = CTCDataset(data_path=f"{data_path}/test.txt")
-
-    w2i, i2w = check_and_retrieveVocabulary([train_dataset.get_gt(), val_dataset.get_gt(), test_dataset.get_gt()], "vocab/", f"{vocab_name}")
-
-    train_dataset.set_dictionaries(w2i, i2w)
-    val_dataset.set_dictionaries(w2i, i2w)
-    test_dataset.set_dictionaries(w2i, i2w)
-
-    return train_dataset, val_dataset, test_dataset
 
 
 

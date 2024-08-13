@@ -1,0 +1,10 @@
+{
+    "data":{
+      "data_path": "Data/Quartets/partitions_quartets/",
+      "batch_size": 1,
+      "vocab_name": "Quartets",
+      "img_format": "_distorted.png",
+      "num_workers": 20,
+      "reduce_ratio": 1.0
+    }
+}
