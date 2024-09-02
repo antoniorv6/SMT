@@ -14,6 +14,10 @@
   <img src='https://img.shields.io/static/v1?label=License&message=MIT&color=blue' alt='License'>
 </p>
 
+<p align="center">
+  <a href="https://huggingface.co/collections/antoniorv6/sheet-music-transformer-66b9c7cd447411b9c0acdce0"><img align="center" src="https://huggingface.co/datasets/huggingface/badges/resolve/main/model-on-hf-md.svg"></a>
+</p>
+
 <p align='center'>
   <a href='#about'>About</a> •
   <a href='#how-to-use'>How To Use</a> •
