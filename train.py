@@ -22,7 +22,7 @@ def main(config_path):
     max_height, max_width = datamodule.train_set.get_max_hw()
     max_len = datamodule.train_set.get_max_seqlen()
 
-    model_wrapper = SMT_Trainer(maxh=max_height, maxw=max_width, maxlen=max_len, 
+    model_wrapper = SMT_Trainer(maxh=int(max_height), maxw=int(max_width), maxlen=int(max_len), 
                                 out_categories=len(datamodule.train_set.w2i), padding_token=datamodule.train_set.w2i["<pad>"], 
                                 in_channels=1, w2i=datamodule.train_set.w2i, i2w=datamodule.train_set.i2w, 
                                 d_model=256, dim_ff=256, num_dec_layers=8)
@@ -31,7 +31,7 @@ def main(config_path):
 
     early_stopping = EarlyStopping(monitor="val_SER", min_delta=0.01, patience=5, mode="min", verbose=True)
     
-    checkpointer = ModelCheckpoint(dirpath=f"weights/Camera_GrandStaff/", filename=f"Camera_GrandStaff_SMT_NexT", 
+    checkpointer = ModelCheckpoint(dirpath=f"weights/GrandStaff/", filename=f"GrandStaff_SMT_NexT", 
                                    monitor="val_SER", mode='min',
                                    save_top_k=1, verbose=True)
 

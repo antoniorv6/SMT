@@ -27,6 +27,7 @@
 </p>
 
 ## Updates
+- The model has been updated with the HuggingFace Transformers 🤗 library!
 - Usage instructions included!
 - The paper was accepted at **ICDAR 2024**!
 
@@ -63,6 +64,25 @@ docker build -t <your_tag> .
 docker run -itd --rm --gpus all --shm-size=8gb -v <repository_path>:/workspace/ <image_tag>
 docker exec -it <docker_container_id> /bin/bash
 ```
+# Hey, I just want to use the SMT!
+Using the SMT for transcribing scores is very easy, thanks to the HuggingFace Transformers 🤗 library. Just implement the following code and you will have the SMT up and running for transcribing excerpts!
+```python
+import torch
+import cv2
+from data_augmentation.data_augmentation import convert_img_to_tensor
+from smt_model import SMTModelForCausalLM
+
+image = cv2.imread("sample.jpg")
+device = "cuda" if torch.cuda.is_available() else "cpu"
+model = SMTModelForCausalLM.from_pretrained("antoniorv6/<smt-weights>").to(device)
+
+predictions, _ = model.predict(convert_img_to_tensor(image).unsqueeze(0).to(device), 
+                               convert_to_str=True)
+
+print("".join(predictions).replace('<b>', '\n').replace('<s>', ' ').replace('<t>', '\t'))
+
+```
+
 # Data
 
 The datasets created to run the experiments are [publicly available](https://grfia.dlsi.ua.es/sheet-music-transformer/) for replication purposes.
@@ -80,30 +100,15 @@ Once the ```.tgz``` files are downloaded, store them into the ```Data``` folder,
 ```
 
 # Train
-These experiments run under the Weights & Biases API and the ```gin``` config library. To replicate an experiment, run the following code:
+These experiments run under the Weights & Biases API and the ```JSON``` config. To replicate an experiment, run the following code:
 
 ```sh
 wandb login
-python train.py --config <path-to-config>
+python train.py --config <config-path>
 ```
 The config files are located in the ```config/``` folder, depending on the executed config file, a specific experiment will be run.
 
-# Test
-Testing works the same way as training. To test on a specific dataset, provide the config file also:
-
-```sh
-wandb login
-python test.py --config <path-to-config>
-```
-
-# Transcribing a single sample
-The repository also has the code for testing the transcription output of a single sample. To do so, please refere to the ```transcribe_single_sample.py``` file. The program asks for a sample to be transcribed and the weights of the SMT that are intended to be used. The program also requires the config file of the model's weights you are using.
-
-```sh
-
-python transcribe_single_score.py --config <path-to-config> --sample_image <your_image> --model_weights <weights_path>
-
- ```
+You can make your own config files to train the SMT on your own data! Just, please, if you are using this code, **follow the specified data specification and configuration files structure that is specified in this document**
 
 ## Citations
 

@@ -13,21 +13,22 @@ from smt_model import SMTModelForCausalLM
 class SMT_Trainer(L.LightningModule):
     def __init__(self, maxh, maxw, maxlen, out_categories, padding_token, in_channels, w2i, i2w, d_model=256, dim_ff=256, num_dec_layers=8):
         super().__init__()
-        config = SMTConfig(maxh=maxh, maxw=maxw, maxlen=maxlen, out_categories=out_categories,
+        self.config = SMTConfig(maxh=maxh, maxw=maxw, maxlen=maxlen, out_categories=out_categories,
                            padding_token=padding_token, in_channels=in_channels, 
                            w2i=w2i, i2w=i2w,
                            d_model=d_model, dim_ff=dim_ff, attn_heads=4, num_dec_layers=num_dec_layers, 
                            use_flash_attn=True)
-        self.model = SMTModelForCausalLM(config)
+        self.model = SMTModelForCausalLM(self.config)
         self.padding_token = padding_token
         
         self.preds = []
         self.grtrs = []
         
-        summary(self, input_size=[(1,1,config.maxh,config.maxw), (1,config.maxlen)], 
+        self.save_hyperparameters()
+        
+        summary(self, input_size=[(1,1,self.config.maxh,self.config.maxw), (1,self.config.maxlen)], 
                 dtypes=[torch.float, torch.long])
         
-        self.save_hyperparameters()
     
     def configure_optimizers(self):
         return torch.optim.Adam(list(self.model.encoder.parameters()) + list(self.model.decoder.parameters()), lr=1e-4, amsgrad=False)
