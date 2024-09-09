@@ -16,6 +16,7 @@
 
 <p align="center">
   <a href="https://huggingface.co/collections/antoniorv6/sheet-music-transformer-66b9c7cd447411b9c0acdce0"><img align="center" src="https://huggingface.co/datasets/huggingface/badges/resolve/main/model-on-hf-md.svg"></a>
+  <a href="https://huggingface.co/collections/antoniorv6/smt-datasets-66defa88d50145aa1a518822"><img align="center" src="https://huggingface.co/datasets/huggingface/badges/resolve/main/dataset-on-hf-md.svg"></a>
 </p>
 
 <p align='center'>
@@ -27,6 +28,7 @@
 </p>
 
 ## Updates
+- The data is publicly available through the HuggingFace Datasets 🤗 library!
 - The model has been updated with the HuggingFace Transformers 🤗 library!
 - Usage instructions included!
 - The paper was accepted at **ICDAR 2024**!
@@ -85,19 +87,17 @@ print("".join(predictions).replace('<b>', '\n').replace('<s>', ' ').replace('<t>
 
 # Data
 
-The datasets created to run the experiments are [publicly available](https://grfia.dlsi.ua.es/sheet-music-transformer/) for replication purposes.
+The datasets created to run the experiments are [publicly available](https://huggingface.co/collections/antoniorv6/smt-datasets-66defa88d50145aa1a518822) for replication purposes.
 
-Once the ```.tgz``` files are downloaded, store them into the ```Data``` folder, getting the following folder structure:
+Eveything is implemented through the HuggingFace Datasets 🤗 library, so loading any of these datasets can be done through just one line of code:
 
+```python
+import datasets
+
+dataset = datasets.load_dataset('antoniorv6/<dataset-name>')
 ```
-  ├── data
-        │   ├── GrandStaff
-        │   │   ├──grandstaff_dataset
-                ├──partitions_grandstaff
-            ├── Quartets
-            │   ├──quartets_dataset
-                ├──partitions_quartets
-```
+
+The dataset has two columns: `image` which contains the original image of the music excerpt for input, and the `transcription`, which contains the corresponding `bekern` notation ground-truth that represents the content of this input. 
 
 # Train
 These experiments run under the Weights & Biases API and the ```JSON``` config. To replicate an experiment, run the following code:
@@ -108,7 +108,7 @@ python train.py --config <config-path>
 ```
 The config files are located in the ```config/``` folder, depending on the executed config file, a specific experiment will be run.
 
-You can make your own config files to train the SMT on your own data! Just, please, if you are using this code, **follow the specified data specification and configuration files structure that is specified in this document**
+You can make your own config files to train the SMT on your own data! Just, please, if you are using this code, **I highly recommend to use your datasets in the same format provided in the HuggingFace Datasets specification to work with this model. If not, I suggest to make your own data.py file from scratch**
 
 ## Citations
 
