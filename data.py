@@ -5,6 +5,7 @@ import torch
 import numpy as np
 import cv2
 
+import datasets
 from ExperimentConfig import ExperimentConfig
 from data_augmentation.data_augmentation import augment, convert_img_to_tensor
 from utils import check_and_retrieveVocabulary
@@ -13,36 +14,29 @@ from lightning import LightningDataModule
 from torch.utils.data import Dataset
 from torchvision import transforms
 
-def load_set(path, base_folder="GrandStaff", fileformat=".jpg", krn_type="bekrn", reduce_ratio=1.0, fixed_size=None):
+def load_set(dataset, split="train", reduce_ratio=1.0, fixed_size=None):
     x = []
     y = []
-    with open(path) as datafile:
-        lines = datafile.readlines()
-        for line in progress.track(lines):
-            excerpt = line.replace("\n", "")
-            try:
-                with open(f"Data/{base_folder}/{'.'.join(excerpt.split('.')[:-1])}.{krn_type}") as krnfile:
-                    krn_content = krnfile.read()
-                    fname = ".".join(excerpt.split('.')[:-1])
-                    img = cv2.imread(f"Data/{base_folder}/{fname}{fileformat}")
-                    if fixed_size != None:
-                        width = fixed_size[1]
-                        height = fixed_size[0]
-                    elif img.shape[1] > 3056:
-                        width = int(np.ceil(3056 * reduce_ratio))
-                        height = int(np.ceil(max(img.shape[0], 256) * reduce_ratio))
-                    else:
-                        width = int(np.ceil(img.shape[1] * reduce_ratio))
-                        height = int(np.ceil(max(img.shape[0], 256) * reduce_ratio))
+    loaded_dataset = datasets.load_dataset(dataset, split=split)
+    for sample in progress.track(loaded_dataset):
+        krn_content = sample['transcription']
+        img = np.array(sample['image'])
+        if fixed_size != None:
+            width = fixed_size[1]
+            height = fixed_size[0]
+        elif img.shape[1] > 3056:
+            width = int(np.ceil(3056 * reduce_ratio))
+            height = int(np.ceil(max(img.shape[0], 256) * reduce_ratio))
+        else:
+            width = int(np.ceil(img.shape[1] * reduce_ratio))
+            height = int(np.ceil(max(img.shape[0], 256) * reduce_ratio))
 
-                    img = cv2.resize(img, (width, height))
-                    y.append([content + '\n' for content in krn_content.split("\n")])
-                    x.append(img)
-            except Exception:
-                print(f'Error reading Data/GrandStaff/{excerpt}')
-
+        img = cv2.resize(img, (width, height))
+        y.append([content + '\n' for content in krn_content.split("\n")])
+        x.append(img)
+    
     return x, y
-
+        
 def batch_preparation_img2seq(data):
     images = [sample[0] for sample in data]
     dec_in = [sample[1] for sample in data]
@@ -127,10 +121,10 @@ class OMRIMG2SEQDataset(Dataset):
         return self.i2w
     
 class GrandStaffSingleSystem(OMRIMG2SEQDataset):
-    def __init__(self, data_path, augment=False) -> None:
+    def __init__(self, data_path, split, augment=False) -> None:
         self.augment = augment
         self.teacher_forcing_error_rate = 0.2
-        self.x, self.y = load_set(data_path)
+        self.x, self.y = load_set(data_path, split)
         self.y = self.preprocess_gt(self.y)
         self.tensorTransform = transforms.ToTensor()
         self.num_sys_gen = 1
@@ -179,12 +173,12 @@ class GrandStaffDataset(LightningDataModule):
         self.vocab_name = config.vocab_name
         self.batch_size = config.batch_size
         self.num_workers = config.num_workers
-        self.train_set = GrandStaffSingleSystem(data_path=f"{self.data_path}/train.txt", augment=True)
-        self.val_set = GrandStaffSingleSystem(data_path=f"{self.data_path}/val.txt")
-        self.test_set = GrandStaffSingleSystem(data_path=f"{self.data_path}/test.txt")
+        self.train_set = GrandStaffSingleSystem(data_path=self.data_path, split="train", augment=True)
+        self.val_set = GrandStaffSingleSystem(data_path=self.data_path, split="val",)
+        self.test_set = GrandStaffSingleSystem(data_path=self.data_path, split="test",)
 
         w2i, i2w = check_and_retrieveVocabulary([self.train_set.get_gt(), self.val_set.get_gt(), self.test_set.get_gt()], "vocab/", f"{self.vocab_name}")
-
+        
         self.train_set.set_dictionaries(w2i, i2w)
         self.val_set.set_dictionaries(w2i, i2w)
         self.test_set.set_dictionaries(w2i, i2w)

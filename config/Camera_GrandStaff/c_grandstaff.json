@@ -1,6 +1,6 @@
 {
     "data":{
-      "data_path": "Data/GrandStaff/partitions_grandstaff/types/",
+      "data_path": "antoniorv6/camera_grandstaff",
       "batch_size": 1,
       "vocab_name": "GrandStaff",
       "img_format": "_distorted.jpg",
