@@ -4,9 +4,9 @@
 </p>
 
 <h1 align='center'>Sheet Music Transformer: End-To-End Optical Music Recognition Beyond Monophonic Transcription</h1>
-
-<h4 align='center'><a href='https://link.springer.com/chapter/10.1007/978-3-031-70552-6_2' target='_blank'>Conference paper</a>.</h4>
-
+<p align = "center">
+	<a href="https://link.springer.com/chapter/10.1007/978-3-031-70552-6_2"><img align="center" src="https://huggingface.co/datasets/huggingface/badges/resolve/main/paper-page-md.svg"></a>
+</p>
 <p align='center'>
   <img src='https://img.shields.io/badge/python-3.9.0-orange' alt='Python'>
   <img src='https://img.shields.io/badge/PyTorch-%23EE4C2C.svg?style=flat&logo=PyTorch&logoColor=white' alt='PyTorch'>
