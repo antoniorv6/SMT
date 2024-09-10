@@ -113,13 +113,17 @@ You can make your own config files to train the SMT on your own data! Just, plea
 ## Citations
 
 ```bibtex
-@misc{riosvila2024SMT,
-	title        = {Sheet Music Transformer: End-To-End Optical Music Recognition Beyond Monophonic Transcription},
-	author       = {Antonio Ríos-Vila and Jorge Calvo-Zaragoza and Thierry Paquet},
-	year         = 2024,
-	eprint       = {2402.07596},
-	archiveprefix = {arXiv},
-	primaryclass = {cs.CV}
+@InProceedings{RiosVila:ICDAR:2024,
+	author="R{\'i}os-Vila, Antonio
+		and Calvo-Zaragoza, Jorge
+		and Paquet, Thierry",
+	title="Sheet Music Transformer: End-To-End Optical Music Recognition Beyond Monophonic Transcription",
+	booktitle="Document Analysis and Recognition - ICDAR 2024",
+	year="2024",
+	publisher="Springer Nature Switzerland",
+	address="Cham",
+	pages="20--37",
+	isbn="978-3-031-70552-6"
 }
 ```
 
