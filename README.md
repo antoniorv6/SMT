@@ -5,7 +5,7 @@
 
 <h1 align='center'>Sheet Music Transformer: End-To-End Optical Music Recognition Beyond Monophonic Transcription</h1>
 
-<h4 align='center'><a href='https://arxiv.org/abs/2402.07596' target='_blank'>Full-text preprint</a>.</h4>
+<h4 align='center'><a href='https://link.springer.com/chapter/10.1007/978-3-031-70552-6_)' target='_blank'>Conference paper</a>.</h4>
 
 <p align='center'>
   <img src='https://img.shields.io/badge/python-3.9.0-orange' alt='Python'>
