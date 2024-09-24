@@ -104,7 +104,7 @@ These experiments run under the Weights & Biases API and the ```JSON``` config. 
 
 ```sh
 wandb login
-python train.py --config <config-path>
+python train.py --config_path <config-path>
 ```
 The config files are located in the ```config/``` folder, depending on the executed config file, a specific experiment will be run.
 
