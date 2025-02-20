@@ -1,7 +1,7 @@
 from .configuration_smt import SMTConfig
-from .modeling_smt import SMTModelForCausalLM
+from .modeling_smt import Decoder
 
 __all__ = [
     "SMTConfig",
-    "SMTModelForCausalLM"
+    "Decoder"
 ]

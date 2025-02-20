@@ -1,0 +1,15 @@
+[project]
+name = "smt"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "loguru>=0.7.3",
+    "pytest>=8.3.4",
+    "rich>=13.9.4",
+    "torch>=2.6.0",
+    "torchinfo>=1.8.0",
+    "torchvision>=0.21.0",
+    "transformers>=4.49.0",
+]

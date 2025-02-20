@@ -1,11 +1,11 @@
+import math
 import torch
+import warnings
 import torch.nn as nn
-import numpy as np
-from torch.nn.init import xavier_uniform_
-from transformers import ConvNextConfig, ConvNextModel, PreTrainedModel
-from transformers.modeling_outputs import CausalLMOutputWithCrossAttentions
+import torch.nn.functional as F
 
-from .configuration_smt import SMTConfig
+from loguru import logger
+from typing import Optional, Tuple
 
 class PositionalEncoding2D(nn.Module):
 
@@ -61,333 +61,279 @@ class PositionalEncoding1D(nn.Module):
                 x[i] = x[i] + self.pe[0, :, start[i]:start[i]+x.size(2)]
             return x
 
-class MHA(nn.Module):
-    def __init__(self, embedding_dim, num_heads=None, dropout=0, proj_value=True) -> None:
+class MultiHeadAttention(nn.Module):
+
+    def __init__(self, d_model:int, num_heads:int, dropout: float = 0.1,
+                 bias:bool = True, batch_first:bool = True):
         super().__init__()
-
-        self.proj_value = proj_value
-        self.lq = nn.Linear(embedding_dim, embedding_dim)
-        self.lk = nn.Linear(embedding_dim, embedding_dim)
-        if proj_value:
-            self.lv = nn.Linear(embedding_dim, embedding_dim)
         
-        self.out_proj = nn.Linear(embedding_dim, embedding_dim)
-
+        assert(d_model % num_heads == 0), logger.error("The embeddings depth must be divisible by the number of heads")
+        
+        self.d_model = d_model
         self.num_heads = num_heads
-        self.head_dim = embedding_dim // num_heads
-        self.scale_factor = float(self.head_dim) ** -0.5
-        self.dropout = nn.Dropout(dropout)
-        self.softmax = nn.Softmax(dim=-1)
+        self.d_head = d_model // num_heads
+        self.scale = self.d_head ** -0.5
+        self.batch_first = batch_first
+        
+        self.has_flash_attn = hasattr(F, 'scaled_dot_product_attention')
+        if not self.has_flash_attn:
+            logger.warning("This program cannot run Flash Attention, for optimal computing, check your GPU driver and your PyTorch version")
+        
+        self.qkv_proj = nn.Linear(d_model, 3 * d_model, bias=bias)
+        self.out_proj = nn.Linear(d_model, d_model, bias=bias)
+        
+        self._init_parameters()
+        
+        self.dropout = nn.Dropout(dropout, inplace=True)
+    
+
+    def _init_parameters(self):
+        nn.init.xavier_uniform_(self.qkv_proj.weight, gain=1 / math.sqrt(2))
+        nn.init.xavier_uniform_(self.out_proj.weight)
+        if self.qkv_proj.bias is not None:
+            nn.init.zeros_(self.qkv_proj.bias)
+            nn.init.zeros_(self.out_proj.bias)
+    
+
+    def _split_heads(self, tensor:torch.Tensor) -> torch.Tensor:
+        """Split the heads and put them into a batch-first format."""
+        batch_size, seq_len, _ = tensor.shape
+        tensor = tensor.view(batch_size, seq_len, self.num_heads, self.d_head)
+        return tensor.transpose(1,2) # (batch_size, num_heads, seq_len, d_head)
+    
+
+    def _merge_heads(self, tensor: torch.Tensor) -> torch.Tensor:
+        """Merge heads and transpose back to batch-first format."""
+        batch_size = tensor.shape[0]
+        tensor = tensor.transpose(1, 2)
+        return tensor.reshape(batch_size, -1, self.d_model).contiguous()
+    
+
+    def compute_flash_attn(self, 
+                           q: torch.Tensor, k: torch.Tensor, v: torch.Tensor, 
+                           attn_mask:Optional[torch.Tensor] = None, is_causal: bool = False):
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            return F.scaled_dot_product_attention(
+                q, k, v, 
+                attn_mask=attn_mask if not is_causal else None,
+                dropout_p=self.dropout.p if self.training else 0.0,
+                is_causal = is_causal
+            )
+    
+    def _compute_regular_attention(
+        self, q: torch.Tensor, k: torch.Tensor, v: torch.Tensor,
+        key_padding_mask: Optional[torch.Tensor] = None, attn_mask: Optional[torch.Tensor] = None,
+        is_causal: bool = True
+    ):
+        attn_weights = torch.matmul(q, k.transpose(-2, -1))
+        
+        if is_causal:
+            causal_mask = torch.triu(
+                torch.ones(q.size(2), k.size(2), dtype=torch.bool, device=q.device),
+                diagonal=1
+            )
+            attn_weights.masked_fill_(causal_mask.unsqueeze(0).unsqueeze(0), float('-inf'))
             
-    def forward(self, query, key, value, key_pad_mask=None, attn_mask=None, get_weights=True):
-        
-        target_len, b, c = query.size()
-        source_len = key.size(0)
-
-        q = self.lq(query)
-        k = self.lk(key)
-        v = self.lv(value) if self.proj_value else value
-
-        q = torch.reshape(q, (target_len, b*self.num_heads, self.head_dim)).transpose(0, 1)
-        k = torch.reshape(k, (source_len, b*self.num_heads, self.head_dim)).transpose(0, 1)
-        v = torch.reshape(v, (source_len, b*self.num_heads, self.head_dim)).transpose(0, 1)
-        
-        attn_output_weigths = torch.bmm(q, k.transpose(1,2))
-        
         if attn_mask is not None:
-            attn_mask = attn_mask.unsqueeze(0)
             if attn_mask.dtype == torch.bool:
-                attn_output_weigths.masked_fill_(attn_mask, float("-inf"))
+                attn_weights.masked_fill_(~attn_mask, float('-inf'))
             else:
-                attn_output_weigths += attn_mask
+                attn_weights += attn_mask
                 
-        if key_pad_mask is not None:
-            attn_output_weigths = attn_output_weigths.view(b, self.num_heads, target_len, source_len)
-            attn_output_weigths = attn_output_weigths.masked_fill(key_pad_mask.unsqueeze(1).unsqueeze(2), float("-inf"))
-            attn_output_weigths = attn_output_weigths.view(b*self.num_heads, target_len, source_len)
-            
-        attn_output_weigths_raw = self.softmax(attn_output_weigths)
-        attn_output_weigths = self.dropout(attn_output_weigths_raw)
-        attn_output = torch.bmm(attn_output_weigths, v)
-        attn_output = attn_output.transpose(0,1).contiguous().view(target_len, b, c)
-        attn_output = self.out_proj(attn_output)
+        if key_padding_mask is not None:
+            attn_weights.masked_fill_(
+                key_padding_mask.unsqueeze(1).unsqueeze(2),
+                float('-inf')
+            )
         
-        if get_weights:
-            attn_output_weigths_raw = attn_output_weigths_raw.view(b, self.num_heads, target_len, source_len)
-            return attn_output, attn_output_weigths_raw.sum(dim=1) / self.num_heads
+        attn_probs = F.softmax(attn_weights, dim=-1, dtype=torch.float32).to(q.dtype)
+        attn_probs = self.dropout(attn_probs)
+        attn_output = torch.matmul(attn_probs, v)
         
-        return attn_output
+        return attn_output, attn_weights
+    
+    def forward(self,
+                query: torch.Tensor, key: Optional[torch.Tensor] = None, value:Optional[torch.Tensor] = None,
+                key_padding_mask: Optional[torch.Tensor] = None, attn_mask: Optional[torch.Tensor] = None,
+                need_weights: bool = False, is_causal: bool = False) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
+        
+        if key is None and value is None:
+            """Since we compute everything from the same source, 
+            we just compute linear projection in the query and split the features
+            into the three variables to compute attention""" 
+            qkv = self.qkv_proj(query)
+            q, k, v = torch.split(qkv, self.d_model, dim=-1)
+        else:
+            if key is None or value is None:
+                raise ValueError("Both key and value must be provided for cross-attention")
+        
+            # We manually multiply each weight section from qkv_proj to their respective vectors
+            q = self.qkv_proj.weight[:self.d_model].mm(query.reshape(-1, query.size(-1)).t())
+            k = self.qkv_proj.weight[self.d_model:2*self.d_model].mm(key.reshape(-1, key.size(-1)).t())
+            v = self.qkv_proj.weight[2*self.d_model:].mm(value.reshape(-1, value.size(-1)).t())
+            q = q.t().view(query.shape)
+            k = k.t().view(key.shape)
+            v = v.t().view(value.shape)
 
-    def init_weights(self):
-        xavier_uniform_(self.in_proj_q.weight)
-        xavier_uniform_(self.in_proj_k.weight)
-        if self.proj_value:
-            xavier_uniform_(self.in_proj_v.weight)
+            if self.qkv_proj.bias is not None:
+                    q += self.qkv_proj.bias[:self.d_model].unsqueeze(0)
+                    k += self.qkv_proj.bias[self.d_model:2*self.d_model].unsqueeze(0)
+                    v += self.qkv_proj.bias[2*self.d_model:].unsqueeze(0)
+        
+        # Split the heads in q, k and v
+        q = self._split_heads(q)
+        k = self._split_heads(k)
+        v = self._split_heads(v)
+        
+        # Scale the query
+        q = q * self.scale
+        
+        use_flash_attn = self.has_flash_attn and not need_weights
+        
+        if use_flash_attn:
+            attn_output = self.compute_flash_attn(q, k, v, attn_mask=attn_mask, is_causal=is_causal)
+            attn_weights = None
+        else:
+            attn_output, attn_weights = self._compute_regular_attention(q, k, v, key_padding_mask, attn_mask, is_causal)
+        
+        output = self._merge_heads(attn_output)
+        output = self.out_proj(output)
+        
+        if need_weights:
+            return output, attn_weights
+        
+        return output, None
 
 class DecoderLayer(nn.Module):
-
-    def __init__(self, d_model, dim_ff) -> None:
-        super(DecoderLayer, self).__init__()
-        self.d_model = d_model
-        self.ff = dim_ff
-
-        self.input_attention = MHA(embedding_dim=self.d_model,
-                             num_heads=4,
-                             proj_value=True,
-                             dropout=0.1)
+    def __init__(self, d_model: int, num_heads: int, dim_ff:int,
+                 dropout: float = 0.1, activation: str = "relu"):
+        super().__init__()
+        self.self_attn = MultiHeadAttention(d_model=d_model, num_heads=num_heads, dropout=dropout)
+        self.cross_attn = MultiHeadAttention(d_model=d_model, num_heads=num_heads, dropout=dropout)
+        self.activation = nn.ReLU() if activation.lower() == "relu" else nn.GELU()
         
-        self.norm1 = nn.LayerNorm(self.d_model)
-
-        self.cross_attention = MHA(embedding_dim=self.d_model,
-                             num_heads=4,
-                             proj_value=True,
-                             dropout=0.1)
-
-        self.ffNet = nn.Sequential(
-            nn.Linear(self.d_model, self.ff),
-            nn.ReLU(),
-            nn.Dropout(0.1),
-            nn.Linear(self.ff, self.d_model)
+        self.ffn = nn.Sequential(
+            nn.Linear(d_model, dim_ff),
+            self.activation,
+            nn.Dropout(dropout),
+            nn.Linear(dim_ff, d_model)
         )
-
-        self.dropout = nn.Dropout(0.1)
-
-        self.norm2 = nn.LayerNorm(self.d_model)
-        self.norm3 = nn.LayerNorm(self.d_model)
+        
+        self.norm_layers = [nn.LayerNorm(d_model) for _ in range(3)]
+        self.dropout_layers = [nn.Dropout(dropout) for _ in range(3)]
     
-    def forward(self, tgt, memory_key, memory_value=None, tgt_mask=None, memory_mask=None, tgt_key_padding_mask=None, memory_key_padding_mask=None,
-                predict_n_last_only=None):
+    def forward(self,
+                x: torch.Tensor,
+                encoder_output: torch.Tensor,
+                tgt_mask: Optional[torch.Tensor] = None,
+                tgt_key_padding_mask: Optional[torch.Tensor] = None,
+                memory_key_padding_mask: Optional[torch.Tensor] = None,
+                return_weights=False):
         
-        if memory_value is None:
-            memory_value = memory_key
+        attn_output, self_weights = self.self_attn(
+            query=x, key=None, value=None, 
+            key_padding_mask=tgt_key_padding_mask, attn_mask=tgt_mask,
+            is_causal=True
+        )
         
-        mha_q = tgt[-predict_n_last_only:] if predict_n_last_only else tgt
-
-        tgt2, weights_input = self.input_attention(mha_q, tgt, tgt, attn_mask=tgt_mask, key_pad_mask=tgt_key_padding_mask, get_weights=True)
-        tgt = mha_q + self.dropout(tgt2)
-        tgt = self.norm1(tgt)
-
-        att_query = tgt
-
-        tgt2, weights_cross = self.cross_attention(att_query, memory_key, memory_value, attn_mask=memory_mask, key_pad_mask=memory_key_padding_mask, get_weights=True)
-
-        tgt = att_query + self.dropout(tgt2)
-        tgt = self.norm2(tgt)
-        tgt2 = self.ffNet(tgt)
-        tgt = tgt + self.dropout(tgt2)
-        tgt = self.norm3(tgt)
+        x = x + self.dropout_layers[0](attn_output)
+        x = self.norm_layers[0](x)
         
-        return tgt, weights_input, weights_cross
-
+        attn_output, cross_weights = self.cross_attn(
+            query=x,
+            key=encoder_output,
+            value=encoder_output,
+            key_padding_mask=memory_key_padding_mask,
+            is_causal=False
+        )
+        
+        x = x + self.dropout_layers[1](attn_output)
+        x = self.norm_layers[1](x)
+        
+        ffn_output = self.ffn(x)
+        x = x + self.dropout_layers[2](ffn_output)
+        x = self.norm_layers[2](x)
+        
+        if return_weights:
+            return x, [self_weights, cross_weights]
+            
+        return x, None
 
 class DecoderStack(nn.Module):
-
-    def __init__(self, num_dec_layers, d_model, dim_ff) -> None:
-        super(DecoderStack, self).__init__()
-        self.layers = nn.ModuleList([DecoderLayer(d_model=d_model, dim_ff=dim_ff) for _ in range(num_dec_layers)])
-    
-    def set_lm_mode(self):
-        for layer in self.layers:
-            layer.set_lm_mode()
-    
-    def set_transcription_mode(self):
-        for layer in self.layers:
-            layer.set_transcription_mode()
-
-    def forward(self, tgt, memory_key, memory_value, tgt_mask, memory_mask, tgt_key_padding_mask, 
-                memory_key_padding_mask, use_cache=False, cache=None, predict_last_n_only=False, keep_all_weights=True):
-
-        output = tgt
-        cache_t = list()
+    def __init__(self, num_dec_layers:int,
+                 d_model:int, dim_ff:int, num_heads:int,
+                 dropout:float):
+        super().__init__()
+        self.layers = nn.ModuleList([DecoderLayer(d_model=d_model, 
+                                                  num_heads=num_heads, 
+                                                  dim_ff=dim_ff) for _ in range(num_dec_layers)])
+    def forward(self,
+                x:torch.Tensor, encoder_output:torch.Tensor,
+                tgt_mask: Optional[torch.Tensor] = None,
+                tgt_key_padding_mask: Optional[torch.Tensor] = None,
+                memory_key_padding_mask: Optional[torch.Tensor] = None,
+                return_weights=False):
+        
+        output = x
         all_weights = {
-            "self": list(),
-            "mix": list()
+            "self_attn": [],
+            "cross_attn": []
         }
-
+        
         for i, dec_layer in enumerate(self.layers):
-            output, weights_self, weights_cross = dec_layer(output, memory_key=memory_key,
-                                        memory_value=memory_value,
-                                        tgt_mask=tgt_mask,
-                                        memory_mask=memory_mask,
+            output, weights = dec_layer(x=output, encoder_output=encoder_output, 
+                                        tgt_mask=tgt_mask, 
                                         tgt_key_padding_mask=tgt_key_padding_mask,
                                         memory_key_padding_mask=memory_key_padding_mask,
-                                        predict_n_last_only=predict_last_n_only)
-
-            if use_cache:
-                cache_t.append(output)
-                if cache is not None:
-                    output = torch.cat([cache[i], output], dim=0)
+                                        return_weights=return_weights)
+            if return_weights:
+                all_weights["self_attn"].append(weights[0])
+                all_weights["cross_attn"].append(weights[1])
         
-            if keep_all_weights:
-                all_weights["self"].append(weights_self)
-                all_weights["mix"].append(weights_cross)
-
-        if use_cache:
-            cache = torch.cat([cache, torch.stack(cache_t, dim=0)], dim=1) if cache is not None else torch.stack(cache_t, dim=0)
-
-        if predict_last_n_only:
-            output = output[-predict_last_n_only:]
-
-        if keep_all_weights:
-            return output, all_weights, cache
-
-        return output, weights_cross, cache
-
+        if return_weights:
+            return output, all_weights
+        
+        return output, None
 
 class Decoder(nn.Module):
-    def __init__(self, d_model, dim_ff, n_layers, maxlen, out_categories, attention_window=100) -> None:
-        super(Decoder, self).__init__()
-        self.dropout = nn.Dropout(0.1)
-        self.dec_attn_win = attention_window
-        self.positional_1D = PositionalEncoding1D(d_model, maxlen)
-
-        self.decoder = DecoderStack(num_dec_layers=n_layers, d_model=d_model, dim_ff=dim_ff)
-
+    def __init__(self, num_dec_layers:int, 
+                 d_model:int, dim_ff:int, n_heads:int,
+                 max_seq_length:int, out_categories:int, dropout:float = 0.1):
+        
+        super().__init__()
+        
+        self.decoder = DecoderStack(num_dec_layers=num_dec_layers,
+                                    d_model=d_model, dim_ff=dim_ff, num_heads=n_heads,
+                                    dropout=dropout)
+        
         self.embedding = nn.Embedding(num_embeddings=out_categories, embedding_dim=d_model)
-
+        
+        self.position_encoding = PositionalEncoding1D(dim=d_model, len_max=max_seq_length)
+        
+        self.vocab_projection = nn.Linear(in_features=d_model, out_features=out_categories)
+        
         self.end_relu = nn.ReLU()
-
-        self.out_layer = nn.Conv1d(d_model, out_categories, kernel_size=1)
+        
+        self.dropout = nn.Dropout(dropout)
     
-    def set_lm_mode(self):
-        self.decoder.set_lm_mode()
-    
-    def set_transcription_mode(self):
-        self.decoder.set_transcription_mode()
-
-    def forward(self, raw_features_1D, enhanced_features_1D, tokens, 
-                reduced_size, token_len, features_size, hidden_predict=None, num_pred=None, cache=None, keep_all_weights=True):
+    def forward(self, decoder_input:torch.Tensor, encoder_output:torch.Tensor,
+                tgt_mask:Optional[torch.Tensor] = None, 
+                tgt_key_padding_mask:Optional[torch.Tensor] = None, 
+                memory_key_padding_mask:Optional[torch.Tensor] = None, 
+                return_weights = False):
         
-        device = raw_features_1D.device
+        decoder_input = self.embedding(decoder_input).permute(0,2,1).contiguous()
+        decoder_input = self.position_encoding(decoder_input, start=0).permute(0,2,1).contiguous()
         
-        pos_tokens = self.embedding(tokens).permute(0,2,1)
-
-        pos_tokens = self.positional_1D(pos_tokens, start=0)
-        pos_tokens = pos_tokens.permute(2,0,1).contiguous()
-
-        if num_pred is None:
-            num_pred = tokens.size(1)
+        output, weights = self.decoder(x=decoder_input, encoder_output=encoder_output, 
+                                       tgt_mask=tgt_mask, tgt_key_padding_mask=tgt_key_padding_mask, 
+                                       memory_key_padding_mask=memory_key_padding_mask, 
+                                       return_weights=return_weights)
         
-        if self.dec_attn_win > 1 and cache is not None:
-            cache = cache[:, -self.dec_attn_win-1]
-        else:
-            cache = None
+        output = self.dropout(self.end_relu(output))
         
-        num_tokens_to_keep = num_pred if self.dec_attn_win is None else min([num_pred + self.dec_attn_win - 1, pos_tokens.size(0), token_len[0]])
-        pos_tokens = pos_tokens[-num_tokens_to_keep:]
-
-        target_mask = self.generate_target_mask(tokens.size(1), device=device)
-        memory_mask = None
-
-        key_target_mask = self.generate_token_mask(token_len, tokens.size(), device)
-        key_memory_mask = None
-
-        target_mask = target_mask[-num_pred:, -num_tokens_to_keep:]
-        key_target_mask = key_target_mask[:, -num_tokens_to_keep:]
-
-        output, weights, cache = self.decoder(pos_tokens, memory_key=enhanced_features_1D, memory_value=raw_features_1D, 
-                                       tgt_mask=target_mask, memory_mask=memory_mask, tgt_key_padding_mask=key_target_mask, 
-                                       memory_key_padding_mask=key_memory_mask, use_cache=True, cache=cache, predict_last_n_only=num_pred, keep_all_weights=keep_all_weights)
-
-        dpoutput = self.dropout(self.end_relu(output))
-
-        predictions = self.out_layer(dpoutput.permute(1,2,0).contiguous())
-
-        if not keep_all_weights:
-            weights = torch.sum(weights, dim=1, keepdim=True).reshape(-1, 1, features_size[2], features_size[3])
-
-        return output, predictions, hidden_predict, cache, weights
-
-    def generate_enc_mask(self, batch_reduced_size, total_size, device):
-        batch_size, _, h_max, w_max = total_size
-        mask = torch.ones((batch_size, h_max, w_max), dtype=torch.bool, device=device)
-        for i, (h, w) in enumerate(batch_reduced_size):
-            mask[i, :h, :w] = False
-        return torch.flatten(mask, start_dim=1, end_dim=2)
-
-    def generate_token_mask(self, token_len, total_size, device):
-        batch_size, len_mask = total_size
-        mask = torch.zeros((batch_size, len_mask), dtype=torch.bool, device=device)
-        for i, len_ in enumerate(token_len):
-            mask[i, :len_] = False
+        predictions = self.vocab_projection(output)
         
-        return mask
-    
-    def generate_target_mask(self, target_len, device):
-        if self.dec_attn_win == 1:
-            return torch.triu(torch.ones((target_len, target_len), dtype=torch.bool, device=device), diagonal=1)
-        else:
-            return torch.logical_not(
-                torch.logical_and(torch.tril(torch.ones((target_len, target_len), dtype=torch.bool, device=device), diagonal=0),
-                                  torch.triu(torch.ones((target_len, target_len), dtype=torch.bool, device=device), diagonal=-self.dec_attn_win+1)))
-
-class SMTOutput(CausalLMOutputWithCrossAttentions):
-    """This is a nice output wrapper"""
-
-class SMTModelForCausalLM(PreTrainedModel):
-    config_class = SMTConfig
-
-    def __init__(self, config:SMTConfig):
-        super().__init__(config)
-        #self.encoder = ConvNextEncoder(config.in_channels, stem_features=64, depths=[4,6], widths=[128, 256])
-        next_config = ConvNextConfig(num_channels=config.in_channels, num_stages=3, hidden_sizes=[64, 128, 256], depths=[3,3,9])
-        self.encoder = ConvNextModel(next_config)
-        self.decoder = Decoder(d_model=config.d_model, dim_ff=config.dim_ff, n_layers=config.num_dec_layers, 
-                               maxlen=config.maxlen, out_categories=config.out_categories, attention_window=config.maxlen + 1)
+        return output, predictions, weights
         
-        self.positional_2D = PositionalEncoding2D(config.d_model, config.maxh, config.maxw)
-
-        self.padding_token = config.padding_token
-        self.loss = nn.CrossEntropyLoss(ignore_index=self.padding_token)
-
-        self.w2i = config.w2i
-        self.i2w = config.i2w
-        self.maxlen = int(config.maxlen)
-    
-    def forward_encoder(self, x):
-        return self.encoder(pixel_values=x).last_hidden_state
-    
-    def forward_decoder(self, encoder_output, y_pred):
-        b, _, _, _ = encoder_output.size()
-        reduced_size = [s.shape[:2] for s in encoder_output]
-        ylens = [len(sample) for sample in y_pred]
-
-        pos_features = self.positional_2D(encoder_output)
-        features = torch.flatten(encoder_output, start_dim=2, end_dim=3).permute(2,0,1)
-        enhanced_features = features
-        enhanced_features = torch.flatten(pos_features, start_dim=2, end_dim=3).permute(2,0,1)
-        output, predictions, _, _, weights = self.decoder(features, enhanced_features, y_pred[:, :], reduced_size, 
-                                                           [max(ylens) for _ in range(b)], encoder_output.size(), 
-                                                           cache=None, keep_all_weights=True)
-        return SMTOutput(
-            logits=predictions,
-            hidden_states=output,
-            attentions=weights["self"],
-            cross_attentions=weights["mix"]
-        )
-
-    def forward(self, x, y_pred, labels=None):
-        x = self.forward_encoder(x)
-        output = self.forward_decoder(x, y_pred)
-        
-        if labels is not None:
-            output.loss = self.loss(output.logits, labels[:, :-1])
-        
-        return output
-        
-    
-    def predict(self, input, convert_to_str=False):
-        predicted_sequence = torch.from_numpy(np.asarray([self.w2i['<bos>']])).to(input.device).unsqueeze(0)
-        encoder_output = self.forward_encoder(input)
-        text_sequence = []
-        for i in range(self.maxlen - predicted_sequence.shape[-1]):
-            predictions = self.forward_decoder(encoder_output, predicted_sequence.long())
-            predicted_token = torch.argmax(predictions.logits[:, :, -1]).item()
-            predicted_sequence = torch.cat([predicted_sequence, torch.argmax(predictions.logits[:, :, -1], dim=1, keepdim=True)], dim=1)
-            if convert_to_str:
-                predicted_token = f"{predicted_token}"
-            if self.i2w[predicted_token] == '<eos>':
-                break
-            text_sequence.append(self.i2w[predicted_token])
-        
-        return text_sequence, predictions
