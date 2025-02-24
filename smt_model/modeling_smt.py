@@ -1,11 +1,17 @@
 import math
 import torch
 import warnings
+import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
 
 from loguru import logger
 from typing import Optional, Tuple
+
+from .configuration_smt import SMTConfig
+
+from transformers import ConvNextConfig, ConvNextModel, PreTrainedModel
+from transformers.modeling_outputs import CausalLMOutputWithCrossAttentions
 
 class PositionalEncoding2D(nn.Module):
 
@@ -64,7 +70,7 @@ class PositionalEncoding1D(nn.Module):
 class MultiHeadAttention(nn.Module):
 
     def __init__(self, d_model:int, num_heads:int, dropout: float = 0.1,
-                 bias:bool = True, batch_first:bool = True):
+                 bias:bool = True):
         super().__init__()
         
         assert(d_model % num_heads == 0), logger.error("The embeddings depth must be divisible by the number of heads")
@@ -73,26 +79,25 @@ class MultiHeadAttention(nn.Module):
         self.num_heads = num_heads
         self.d_head = d_model // num_heads
         self.scale = self.d_head ** -0.5
-        self.batch_first = batch_first
         
-        self.has_flash_attn = hasattr(F, 'scaled_dot_product_attention')
+        self.has_flash_attn = False#hasattr(F, 'scaled_dot_product_attention')
         if not self.has_flash_attn:
             logger.warning("This program cannot run Flash Attention, for optimal computing, check your GPU driver and your PyTorch version")
         
-        self.qkv_proj = nn.Linear(d_model, 3 * d_model, bias=bias)
+        self.q_proj = nn.Linear(d_model, d_model, bias=bias)
+        self.k_proj = nn.Linear(d_model, d_model, bias=bias)
+        self.v_proj = nn.Linear(d_model, d_model, bias=bias)
         self.out_proj = nn.Linear(d_model, d_model, bias=bias)
         
         self._init_parameters()
         
-        self.dropout = nn.Dropout(dropout, inplace=True)
+        self.dropout = nn.Dropout(dropout)
     
 
     def _init_parameters(self):
-        nn.init.xavier_uniform_(self.qkv_proj.weight, gain=1 / math.sqrt(2))
-        nn.init.xavier_uniform_(self.out_proj.weight)
-        if self.qkv_proj.bias is not None:
-            nn.init.zeros_(self.qkv_proj.bias)
-            nn.init.zeros_(self.out_proj.bias)
+        nn.init.xavier_uniform_(self.q_proj.weight)
+        nn.init.xavier_uniform_(self.k_proj.weight)
+        nn.init.xavier_uniform_(self.v_proj.weight)
     
 
     def _split_heads(self, tensor:torch.Tensor) -> torch.Tensor:
@@ -126,7 +131,7 @@ class MultiHeadAttention(nn.Module):
         key_padding_mask: Optional[torch.Tensor] = None, attn_mask: Optional[torch.Tensor] = None,
         is_causal: bool = True
     ):
-        attn_weights = torch.matmul(q, k.transpose(-2, -1))
+        attn_weights = torch.matmul(q, k.transpose(-2, -1)) * self.scale
         
         if is_causal:
             causal_mask = torch.triu(
@@ -147,7 +152,7 @@ class MultiHeadAttention(nn.Module):
                 float('-inf')
             )
         
-        attn_probs = F.softmax(attn_weights, dim=-1, dtype=torch.float32).to(q.dtype)
+        attn_probs = F.softmax(attn_weights, dim=-1)
         attn_probs = self.dropout(attn_probs)
         attn_output = torch.matmul(attn_probs, v)
         
@@ -158,36 +163,23 @@ class MultiHeadAttention(nn.Module):
                 key_padding_mask: Optional[torch.Tensor] = None, attn_mask: Optional[torch.Tensor] = None,
                 need_weights: bool = False, is_causal: bool = False) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         
-        if key is None and value is None:
-            """Since we compute everything from the same source, 
-            we just compute linear projection in the query and split the features
-            into the three variables to compute attention""" 
-            qkv = self.qkv_proj(query)
-            q, k, v = torch.split(qkv, self.d_model, dim=-1)
+        if key is None and value is None: 
+            q = self.q_proj(query)
+            k = self.k_proj(query)
+            v = self.v_proj(query)
         else:
             if key is None or value is None:
                 raise ValueError("Both key and value must be provided for cross-attention")
         
             # We manually multiply each weight section from qkv_proj to their respective vectors
-            q = self.qkv_proj.weight[:self.d_model].mm(query.reshape(-1, query.size(-1)).t())
-            k = self.qkv_proj.weight[self.d_model:2*self.d_model].mm(key.reshape(-1, key.size(-1)).t())
-            v = self.qkv_proj.weight[2*self.d_model:].mm(value.reshape(-1, value.size(-1)).t())
-            q = q.t().view(query.shape)
-            k = k.t().view(key.shape)
-            v = v.t().view(value.shape)
-
-            if self.qkv_proj.bias is not None:
-                    q += self.qkv_proj.bias[:self.d_model].unsqueeze(0)
-                    k += self.qkv_proj.bias[self.d_model:2*self.d_model].unsqueeze(0)
-                    v += self.qkv_proj.bias[2*self.d_model:].unsqueeze(0)
+            q = self.q_proj(query)
+            k = self.k_proj(key)
+            v = self.v_proj(value)
         
         # Split the heads in q, k and v
         q = self._split_heads(q)
         k = self._split_heads(k)
         v = self._split_heads(v)
-        
-        # Scale the query
-        q = q * self.scale
         
         use_flash_attn = self.has_flash_attn and not need_weights
         
@@ -211,6 +203,7 @@ class DecoderLayer(nn.Module):
         super().__init__()
         self.self_attn = MultiHeadAttention(d_model=d_model, num_heads=num_heads, dropout=dropout)
         self.cross_attn = MultiHeadAttention(d_model=d_model, num_heads=num_heads, dropout=dropout)
+        
         self.activation = nn.ReLU() if activation.lower() == "relu" else nn.GELU()
         
         self.ffn = nn.Sequential(
@@ -220,20 +213,22 @@ class DecoderLayer(nn.Module):
             nn.Linear(dim_ff, d_model)
         )
         
-        self.norm_layers = [nn.LayerNorm(d_model) for _ in range(3)]
-        self.dropout_layers = [nn.Dropout(dropout) for _ in range(3)]
+        self.norm_layers = nn.ModuleList([nn.LayerNorm(d_model) for _ in range(3)])
+        self.dropout_layers = nn.ModuleList([nn.Dropout(dropout) for _ in range(3)])
     
     def forward(self,
                 x: torch.Tensor,
-                encoder_output: torch.Tensor,
+                encoder_output_key: torch.Tensor,
+                encoder_output_value: torch.Tensor,
                 tgt_mask: Optional[torch.Tensor] = None,
                 tgt_key_padding_mask: Optional[torch.Tensor] = None,
                 memory_key_padding_mask: Optional[torch.Tensor] = None,
                 return_weights=False):
         
+        
         attn_output, self_weights = self.self_attn(
             query=x, key=None, value=None, 
-            key_padding_mask=tgt_key_padding_mask, attn_mask=tgt_mask,
+            key_padding_mask=tgt_key_padding_mask, attn_mask=None,
             is_causal=True
         )
         
@@ -242,8 +237,8 @@ class DecoderLayer(nn.Module):
         
         attn_output, cross_weights = self.cross_attn(
             query=x,
-            key=encoder_output,
-            value=encoder_output,
+            key=encoder_output_key,
+            value=encoder_output_value,
             key_padding_mask=memory_key_padding_mask,
             is_causal=False
         )
@@ -269,7 +264,7 @@ class DecoderStack(nn.Module):
                                                   num_heads=num_heads, 
                                                   dim_ff=dim_ff) for _ in range(num_dec_layers)])
     def forward(self,
-                x:torch.Tensor, encoder_output:torch.Tensor,
+                x:torch.Tensor, encoder_output_2D:torch.Tensor, encoder_output_raw:torch.Tensor,
                 tgt_mask: Optional[torch.Tensor] = None,
                 tgt_key_padding_mask: Optional[torch.Tensor] = None,
                 memory_key_padding_mask: Optional[torch.Tensor] = None,
@@ -282,7 +277,9 @@ class DecoderStack(nn.Module):
         }
         
         for i, dec_layer in enumerate(self.layers):
-            output, weights = dec_layer(x=output, encoder_output=encoder_output, 
+            output, weights = dec_layer(x=output, 
+                                        encoder_output_key=encoder_output_2D,
+                                        encoder_output_value=encoder_output_raw, 
                                         tgt_mask=tgt_mask, 
                                         tgt_key_padding_mask=tgt_key_padding_mask,
                                         memory_key_padding_mask=memory_key_padding_mask,
@@ -313,11 +310,10 @@ class Decoder(nn.Module):
         
         self.vocab_projection = nn.Linear(in_features=d_model, out_features=out_categories)
         
-        self.end_relu = nn.ReLU()
-        
         self.dropout = nn.Dropout(dropout)
     
-    def forward(self, decoder_input:torch.Tensor, encoder_output:torch.Tensor,
+    def forward(self, decoder_input:torch.Tensor, 
+                encoder_output_2D:torch.Tensor, encoder_output_raw:torch.Tensor,
                 tgt_mask:Optional[torch.Tensor] = None, 
                 tgt_key_padding_mask:Optional[torch.Tensor] = None, 
                 memory_key_padding_mask:Optional[torch.Tensor] = None, 
@@ -326,14 +322,103 @@ class Decoder(nn.Module):
         decoder_input = self.embedding(decoder_input).permute(0,2,1).contiguous()
         decoder_input = self.position_encoding(decoder_input, start=0).permute(0,2,1).contiguous()
         
-        output, weights = self.decoder(x=decoder_input, encoder_output=encoder_output, 
+        output, weights = self.decoder(x=decoder_input, encoder_output_2D=encoder_output_2D, 
+                                       encoder_output_raw=encoder_output_raw, 
                                        tgt_mask=tgt_mask, tgt_key_padding_mask=tgt_key_padding_mask, 
                                        memory_key_padding_mask=memory_key_padding_mask, 
                                        return_weights=return_weights)
         
-        output = self.dropout(self.end_relu(output))
+        output = self.dropout(output)
         
         predictions = self.vocab_projection(output)
         
         return output, predictions, weights
+
+class SMTOutput(CausalLMOutputWithCrossAttentions):
+    """Output wrapper for the SMT"""
+
+class SMTModelForCausalLM(PreTrainedModel):
+    config_class = SMTConfig
+    
+    def __init__(self, config:SMTConfig):
+        super().__init__(config)
+        next_config = ConvNextConfig(num_channels=config.in_channels, 
+                                     num_stages=3, hidden_sizes=[64,128,256], depths=[3,3,9])
+        self.encoder = ConvNextModel(next_config)
+        self.decoder = Decoder(num_dec_layers=config.num_dec_layers, 
+                               d_model=config.d_model, dim_ff=config.dim_ff, n_heads=config.num_attn_heads,
+                               max_seq_length=config.maxlen, out_categories=config.out_categories)
+        
+        self.pos2D = PositionalEncoding2D(dim=config.d_model, h_max=config.maxh, w_max=config.maxw)
+        
+        self.padding_token = config.padding_token
+        
+        self.loss = nn.CrossEntropyLoss(ignore_index=config.padding_token)
+        
+        self.w2i = config.w2i
+        self.i2w = config.i2w
+        self.maxlen = int(config.maxlen)
+    
+    def forward_encoder(self, x):
+        return self.encoder(pixel_values=x).last_hidden_state
+    
+    def forward_decoder(self, encoder_output, last_predictions, get_weights=False):
+        b, _, _, _ = encoder_output.size()
+        
+        encoder_output_2D = self.pos2D(encoder_output)
+        encoder_features = torch.flatten(encoder_output, start_dim=2, end_dim=3).permute(0, 2, 1)
+        encoder_features_2D = torch.flatten(encoder_output_2D, start_dim=2, end_dim=3).permute(0, 2, 1)
+        key_target_mask = self._generate_token_mask([lp.shape[0] for lp in last_predictions], last_predictions.size(), device=last_predictions.device)
+        
+        output, predictions, weights = self.decoder(decoder_input=last_predictions, 
+                                                    encoder_output_2D=encoder_features_2D, encoder_output_raw=encoder_features,
+                                                    tgt_mask=None, tgt_key_padding_mask=key_target_mask, 
+                                                    memory_key_padding_mask=None,
+                                                    return_weights=get_weights) 
+        
+        return SMTOutput(
+            logits=predictions,
+            hidden_states=output,
+            attentions=None if weights is None else weights["self_attn"],
+            cross_attentions=None if weights is None else weights["cross_attn"]
+        )
+    
+    def forward(self, encoder_input, decoder_input, labels=None):
+        x = self.forward_encoder(encoder_input)
+        output = self.forward_decoder(x, decoder_input)
+        
+        if labels is not None:
+            output.loss = self.loss(output.logits.permute(0,2,1).contiguous(), labels[:, :-1])
+        
+        return output
+    
+    @torch.no_grad
+    def predict(self, input, convert_to_str=False, return_weights=False):
+        predicted_sequence = torch.from_numpy(np.asarray([self.w2i['<bos>']])).to(input.device).unsqueeze(0)
+        encoder_output = self.forward_encoder(input)
+        text_sequence = []
+        for i in range(self.maxlen - predicted_sequence.shape[-1]):
+            output = self.forward_decoder(encoder_output=encoder_output, last_predictions=predicted_sequence, 
+                                          get_weights=return_weights)
+            predicted_token = torch.argmax(output.logits[:, -1, :], dim=-1).item()
+            predicted_sequence = torch.cat([predicted_sequence, torch.argmax(output.logits[:, -1, :], dim=-1, keepdim=True)], dim=1)
+            if convert_to_str:
+                predicted_token = f"{predicted_token}"
+            if self.i2w[predicted_token] == '<eos>':
+                break
+            text_sequence.append(self.i2w[predicted_token])
+        
+        return text_sequence, output
+
+    
+    def _generate_token_mask(self, token_len, total_size, device):
+        batch_size, len_mask = total_size
+        mask = torch.zeros((batch_size, len_mask), dtype=torch.bool, device=device)
+        for i, len_ in enumerate(token_len):
+            mask[i, :len_] = False
+        
+        return mask
+ 
+               
+
         

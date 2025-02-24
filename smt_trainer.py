@@ -33,12 +33,12 @@ class SMT_Trainer(L.LightningModule):
     def configure_optimizers(self):
         return torch.optim.Adam(list(self.model.encoder.parameters()) + list(self.model.decoder.parameters()), lr=1e-4, amsgrad=False)
     
-    def forward(self, input, last_preds) -> torch.Any:
+    def forward(self, input, last_preds):
         return self.model(input, last_preds)
     
     def training_step(self, batch):
-        x, di, y, = batch
-        outputs = self.model(x, di[:, :-1], labels=y)
+        x, di, y = batch
+        outputs = self.model(encoder_input=x, decoder_input=di[:, :-1], labels=y)
         loss = outputs.loss
         self.log('loss', loss, on_epoch=True, batch_size=1, prog_bar=True)
         
@@ -80,8 +80,8 @@ class SMT_Trainer(L.LightningModule):
         
         return ser
     
-    def test_step(self, test_batch) -> torch.Tensor | torch.Dict[str, torch.Any] | None:
+    def test_step(self, test_batch):
         return self.validation_step(test_batch)
     
-    def on_test_epoch_end(self) -> None:
+    def on_test_epoch_end(self):
         return self.on_validation_epoch_end("test")
