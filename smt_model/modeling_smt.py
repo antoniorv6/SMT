@@ -79,7 +79,7 @@ class MultiHeadAttention(nn.Module):
         self.d_head = d_model // num_heads
         self.scale = self.d_head ** -0.5
         
-        self.has_flash_attn = False#hasattr(F, 'scaled_dot_product_attention')
+        self.has_flash_attn = hasattr(F, 'scaled_dot_product_attention')
         if not self.has_flash_attn:
             logger.warning("This program cannot run Flash Attention, for optimal computing, check your GPU driver and your PyTorch version")
         
@@ -122,7 +122,7 @@ class MultiHeadAttention(nn.Module):
                 q, k, v, 
                 attn_mask=attn_mask if not is_causal else None,
                 dropout_p=self.dropout.p if self.training else 0.0,
-                is_causal = is_causal
+                is_causal = is_causal, scale=self.scale
             )
     
     def _compute_regular_attention(
@@ -130,7 +130,7 @@ class MultiHeadAttention(nn.Module):
         key_padding_mask: Optional[torch.Tensor] = None, attn_mask: Optional[torch.Tensor] = None,
         is_causal: bool = True
     ):
-        attn_weights = torch.matmul(q, k.transpose(-2, -1)) * self.scale
+        attn_weights = (q @ k.transpose(-2, -1)) * self.scale
         
         if is_causal:
             causal_mask = torch.triu(
@@ -147,13 +147,13 @@ class MultiHeadAttention(nn.Module):
                 
         if key_padding_mask is not None:
             attn_weights.masked_fill_(
-                key_padding_mask.unsqueeze(1).unsqueeze(2),
+                ~key_padding_mask.unsqueeze(1).unsqueeze(2),
                 float('-inf')
             )
         
         attn_probs = F.softmax(attn_weights, dim=-1)
         attn_probs = self.dropout(attn_probs)
-        attn_output = torch.matmul(attn_probs, v)
+        attn_output = attn_probs @ v
         
         return attn_output, attn_weights
     
@@ -372,7 +372,7 @@ class SMTModelForCausalLM(PreTrainedModel):
         output, predictions, weights = self.decoder(decoder_input=last_predictions, 
                                                     encoder_output_2D=encoder_features_2D, encoder_output_raw=encoder_features,
                                                     tgt_mask=None, tgt_key_padding_mask=key_target_mask, 
-                                                    memory_key_padding_mask=None,
+                                                    memory_key_padding_mask=None, #[TODO] This only works with one sample per batch
                                                     return_weights=get_weights) 
         
         return SMTOutput(
@@ -414,7 +414,7 @@ class SMTModelForCausalLM(PreTrainedModel):
         batch_size, len_mask = total_size
         mask = torch.zeros((batch_size, len_mask), dtype=torch.bool, device=device)
         for i, len_ in enumerate(token_len):
-            mask[i, :len_] = False
+            mask[i, :len_] = True
         
         return mask
  
