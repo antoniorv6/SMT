@@ -19,25 +19,29 @@ class PositionalEncoding2D(nn.Module):
         self.h_max = h_max
         self.max_w = w_max
         self.dim = dim
-        self.pe = torch.zeros((1, dim, h_max, w_max), device=torch.device('cuda' if torch.cuda.is_available() else 'cpu'), requires_grad=False)
 
-        div = torch.exp(-torch.arange(0., dim // 2, 2) / dim * torch.log(torch.tensor(10000.0))).unsqueeze(1)
-        w_pos = torch.arange(0., w_max)
-        h_pos = torch.arange(0., h_max)
-        self.pe[:, :dim // 2:2, :, :] = torch.sin(h_pos * div).unsqueeze(0).unsqueeze(3).repeat(1, 1, 1, w_max)
-        self.pe[:, 1:dim // 2:2, :, :] = torch.cos(h_pos * div).unsqueeze(0).unsqueeze(3).repeat(1, 1, 1, w_max)
-        self.pe[:, dim // 2::2, :, :] = torch.sin(w_pos * div).unsqueeze(0).unsqueeze(2).repeat(1, 1, h_max, 1)
-        self.pe[:, dim // 2 + 1::2, :, :] = torch.cos(w_pos * div).unsqueeze(0).unsqueeze(2).repeat(1, 1, h_max, 1)
+        self.pe: torch.Tensor
+        self.register_buffer("pe", torch.zeros((dim, h_max, w_max), requires_grad=False), persistent=False)
+
+        div = torch.exp(-torch.arange(0., dim // 2, 2) / dim * torch.log(torch.tensor(1e+4))).unsqueeze(1)
+        w_pos = torch.arange(0., w_max) * div
+        h_pos = torch.arange(0., h_max) * div
+        self.pe[:dim // 2:2] = torch.sin(h_pos).unsqueeze(2).repeat(1, 1, w_max)
+        self.pe[1:dim // 2:2] = torch.cos(h_pos).unsqueeze(2).repeat(1, 1, w_max)
+        self.pe[dim // 2::2] = torch.sin(w_pos).unsqueeze(1).repeat(1, h_max, 1)
+        self.pe[dim // 2 + 1::2] = torch.cos(w_pos).unsqueeze(1).repeat(1, h_max, 1)
 
     def forward(self, x):
         """
         Add 2D positional encoding to x
-        x: (B, C, H, W)
+        x: Tensor(B, C, H, W)
+        returns:
+        - Tensor(B, C, H, W)
         """
-        return x + self.pe[:, :, :x.size(2), :x.size(3)]
+        return x + self.get_pe_by_size(x.size(-2), x.size(-1))
 
-    def get_pe_by_size(self, h, w, device):
-        return self.pe[:, :, :h, :w].to(device)
+    def get_pe_by_size(self, h, w):
+        return self.pe[:, :h, :w]
 
 
 class PositionalEncoding1D(nn.Module):
@@ -46,24 +50,27 @@ class PositionalEncoding1D(nn.Module):
         super(PositionalEncoding1D, self).__init__()
         self.len_max = len_max
         self.dim = dim
-        self.pe = torch.zeros((1, dim, len_max), device=torch.device('cuda' if torch.cuda.is_available() else 'cpu'), requires_grad=False)
+        self.pe: torch.Tensor
+        self.register_buffer("pe", torch.zeros((len_max, dim), requires_grad=False), persistent=False)
 
-        div = torch.exp(-torch.arange(0., dim, 2) / dim * torch.log(torch.tensor(10000.0))).unsqueeze(1)
-        l_pos = torch.arange(0., len_max)
-        self.pe[:, ::2, :] = torch.sin(l_pos * div).unsqueeze(0)
-        self.pe[:, 1::2, :] = torch.cos(l_pos * div).unsqueeze(0)
+        div = torch.exp(-torch.arange(0., dim, 2) / dim * torch.log(torch.tensor(1e+4)))
+        l_pos = torch.arange(0., len_max).unsqueeze(1) * div
+        self.pe[:, ::2] = torch.sin(l_pos)
+        self.pe[:, 1::2] = torch.cos(l_pos)
 
-    def forward(self, x, start):
+    def forward(self, x, start = 0):
         """
         Add 1D positional encoding to x
-        x: (B, C, L)
-        start: index for x[:,:, 0]
+        x: Tensor(B, L, C)
+        start: index for x[:, 0, :]
+        returns:
+        - Tensor(B, L, C)
         """
         if isinstance(start, int):
-            return x + self.pe[:, :, start:start+x.size(2)].to(x.device)
+            return x + self.pe[start:start+x.size(-2)]
         else:
             for i in range(x.size(0)):
-                x[i] = x[i] + self.pe[0, :, start[i]:start[i]+x.size(2)]
+                x[i] = x[i] + self.pe[start[i]:start[i]+x.size(-2)]
             return x
 
 class MultiHeadAttention(nn.Module):
@@ -318,8 +325,8 @@ class Decoder(nn.Module):
                 memory_key_padding_mask:Optional[torch.Tensor] = None, 
                 return_weights = False):
         
-        decoder_input = self.embedding(decoder_input).permute(0,2,1).contiguous()
-        decoder_input = self.position_encoding(decoder_input, start=0).permute(0,2,1).contiguous()
+        decoder_input = self.embedding(decoder_input)
+        decoder_input = self.position_encoding(decoder_input)
         
         output, weights = self.decoder(x=decoder_input, encoder_output_2D=encoder_output_2D, 
                                        encoder_output_raw=encoder_output_raw, 
