@@ -115,29 +115,23 @@ class MultiHeadAttention(nn.Module):
 
     def compute_flash_attn(self, 
                            q: torch.Tensor, k: torch.Tensor, v: torch.Tensor, 
-                           attn_mask:Optional[torch.Tensor] = None, is_causal: bool = False):
+                           attn_mask:Optional[torch.Tensor] = None):
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
+            if attn_mask is not None:
+                attn_mask = ~attn_mask
             return F.scaled_dot_product_attention(
                 q, k, v, 
-                attn_mask=attn_mask if not is_causal else None,
+                attn_mask=attn_mask,
                 dropout_p=self.dropout.p if self.training else 0.0,
-                is_causal = is_causal, scale=self.scale
+                is_causal = False, scale=self.scale
             )
     
     def _compute_regular_attention(
         self, q: torch.Tensor, k: torch.Tensor, v: torch.Tensor,
-        key_padding_mask: Optional[torch.Tensor] = None, attn_mask: Optional[torch.Tensor] = None,
-        is_causal: bool = True
+        key_padding_mask: Optional[torch.Tensor] = None, attn_mask: Optional[torch.Tensor] = None
     ):
         attn_weights = (q @ k.transpose(-2, -1)) * self.scale
-        
-        if is_causal:
-            causal_mask = torch.triu(
-                torch.ones(q.size(2), k.size(2), dtype=torch.bool, device=q.device),
-                diagonal=1
-            )
-            attn_weights.masked_fill_(causal_mask.unsqueeze(0).unsqueeze(0), float('-inf'))
             
         if attn_mask is not None:
             if attn_mask.dtype == torch.bool:
@@ -160,7 +154,7 @@ class MultiHeadAttention(nn.Module):
     def forward(self,
                 query: torch.Tensor, key: Optional[torch.Tensor] = None, value:Optional[torch.Tensor] = None,
                 key_padding_mask: Optional[torch.Tensor] = None, attn_mask: Optional[torch.Tensor] = None,
-                need_weights: bool = False, is_causal: bool = False) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
+                need_weights: bool = False) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         
         if key is None and value is None: 
             q = self.q_proj(query)
@@ -183,10 +177,10 @@ class MultiHeadAttention(nn.Module):
         use_flash_attn = self.has_flash_attn and not need_weights
         
         if use_flash_attn:
-            attn_output = self.compute_flash_attn(q, k, v, attn_mask=attn_mask, is_causal=is_causal)
+            attn_output = self.compute_flash_attn(q, k, v, attn_mask=attn_mask)
             attn_weights = None
         else:
-            attn_output, attn_weights = self._compute_regular_attention(q, k, v, key_padding_mask, attn_mask, is_causal)
+            attn_output, attn_weights = self._compute_regular_attention(q, k, v, key_padding_mask, attn_mask)
         
         output = self._merge_heads(attn_output)
         output = self.out_proj(output)
@@ -227,8 +221,7 @@ class DecoderLayer(nn.Module):
         
         attn_output, self_weights = self.self_attn(
             query=x, key=None, value=None, 
-            key_padding_mask=tgt_key_padding_mask, attn_mask=None,
-            is_causal=True
+            key_padding_mask=tgt_key_padding_mask, attn_mask=tgt_mask
         )
         
         x = x + self.dropout_layers[0](attn_output)
@@ -238,8 +231,7 @@ class DecoderLayer(nn.Module):
             query=x,
             key=encoder_output_key,
             value=encoder_output_value,
-            key_padding_mask=memory_key_padding_mask,
-            is_causal=False
+            key_padding_mask=memory_key_padding_mask
         )
         
         x = x + self.dropout_layers[1](attn_output)
@@ -368,10 +360,11 @@ class SMTModelForCausalLM(PreTrainedModel):
         encoder_features = torch.flatten(encoder_output, start_dim=2, end_dim=3).permute(0, 2, 1)
         encoder_features_2D = torch.flatten(encoder_output_2D, start_dim=2, end_dim=3).permute(0, 2, 1)
         key_target_mask = self._generate_token_mask([lp.shape[0] for lp in last_predictions], last_predictions.size(), device=last_predictions.device)
+        causal_mask = self._generate_causal_mask(last_predictions.size(1), last_predictions.device)
         
         output, predictions, weights = self.decoder(decoder_input=last_predictions, 
                                                     encoder_output_2D=encoder_features_2D, encoder_output_raw=encoder_features,
-                                                    tgt_mask=None, tgt_key_padding_mask=key_target_mask, 
+                                                    tgt_mask=causal_mask, tgt_key_padding_mask=key_target_mask, 
                                                     memory_key_padding_mask=None, #[TODO] This only works with one sample per batch
                                                     return_weights=get_weights) 
         
@@ -417,6 +410,13 @@ class SMTModelForCausalLM(PreTrainedModel):
             mask[i, :len_] = True
         
         return mask
+    
+    def _generate_causal_mask(self, token_len, device):
+        causal_mask = torch.triu(
+                torch.ones(token_len, token_len, dtype=torch.bool, device=device),
+                diagonal=1
+            )
+        return causal_mask
  
                
 
