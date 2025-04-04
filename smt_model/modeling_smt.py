@@ -70,7 +70,7 @@ class MHA(nn.Module):
         self.lk = nn.Linear(embedding_dim, embedding_dim)
         if proj_value:
             self.lv = nn.Linear(embedding_dim, embedding_dim)
-        
+
         self.out_proj = nn.Linear(embedding_dim, embedding_dim)
 
         self.num_heads = num_heads
@@ -78,9 +78,9 @@ class MHA(nn.Module):
         self.scale_factor = float(self.head_dim) ** -0.5
         self.dropout = nn.Dropout(dropout)
         self.softmax = nn.Softmax(dim=-1)
-            
+
     def forward(self, query, key, value, key_pad_mask=None, attn_mask=None, get_weights=True):
-        
+
         target_len, b, c = query.size()
         source_len = key.size(0)
 
@@ -91,31 +91,31 @@ class MHA(nn.Module):
         q = torch.reshape(q, (target_len, b*self.num_heads, self.head_dim)).transpose(0, 1)
         k = torch.reshape(k, (source_len, b*self.num_heads, self.head_dim)).transpose(0, 1)
         v = torch.reshape(v, (source_len, b*self.num_heads, self.head_dim)).transpose(0, 1)
-        
+
         attn_output_weigths = torch.bmm(q, k.transpose(1,2))
-        
+
         if attn_mask is not None:
             attn_mask = attn_mask.unsqueeze(0)
             if attn_mask.dtype == torch.bool:
                 attn_output_weigths.masked_fill_(attn_mask, float("-inf"))
             else:
                 attn_output_weigths += attn_mask
-                
+
         if key_pad_mask is not None:
             attn_output_weigths = attn_output_weigths.view(b, self.num_heads, target_len, source_len)
             attn_output_weigths = attn_output_weigths.masked_fill(key_pad_mask.unsqueeze(1).unsqueeze(2), float("-inf"))
             attn_output_weigths = attn_output_weigths.view(b*self.num_heads, target_len, source_len)
-            
+
         attn_output_weigths_raw = self.softmax(attn_output_weigths)
         attn_output_weigths = self.dropout(attn_output_weigths_raw)
         attn_output = torch.bmm(attn_output_weigths, v)
         attn_output = attn_output.transpose(0,1).contiguous().view(target_len, b, c)
         attn_output = self.out_proj(attn_output)
-        
+
         if get_weights:
             attn_output_weigths_raw = attn_output_weigths_raw.view(b, self.num_heads, target_len, source_len)
             return attn_output, attn_output_weigths_raw.sum(dim=1) / self.num_heads
-        
+
         return attn_output
 
     def init_weights(self):
@@ -135,7 +135,7 @@ class DecoderLayer(nn.Module):
                              num_heads=4,
                              proj_value=True,
                              dropout=0.1)
-        
+
         self.norm1 = nn.LayerNorm(self.d_model)
 
         self.cross_attention = MHA(embedding_dim=self.d_model,
@@ -154,13 +154,13 @@ class DecoderLayer(nn.Module):
 
         self.norm2 = nn.LayerNorm(self.d_model)
         self.norm3 = nn.LayerNorm(self.d_model)
-    
+
     def forward(self, tgt, memory_key, memory_value=None, tgt_mask=None, memory_mask=None, tgt_key_padding_mask=None, memory_key_padding_mask=None,
                 predict_n_last_only=None):
-        
+
         if memory_value is None:
             memory_value = memory_key
-        
+
         mha_q = tgt[-predict_n_last_only:] if predict_n_last_only else tgt
 
         tgt2, weights_input = self.input_attention(mha_q, tgt, tgt, attn_mask=tgt_mask, key_pad_mask=tgt_key_padding_mask, get_weights=True)
@@ -176,7 +176,7 @@ class DecoderLayer(nn.Module):
         tgt2 = self.ffNet(tgt)
         tgt = tgt + self.dropout(tgt2)
         tgt = self.norm3(tgt)
-        
+
         return tgt, weights_input, weights_cross
 
 
@@ -185,16 +185,16 @@ class DecoderStack(nn.Module):
     def __init__(self, num_dec_layers, d_model, dim_ff) -> None:
         super(DecoderStack, self).__init__()
         self.layers = nn.ModuleList([DecoderLayer(d_model=d_model, dim_ff=dim_ff) for _ in range(num_dec_layers)])
-    
+
     def set_lm_mode(self):
         for layer in self.layers:
             layer.set_lm_mode()
-    
+
     def set_transcription_mode(self):
         for layer in self.layers:
             layer.set_transcription_mode()
 
-    def forward(self, tgt, memory_key, memory_value, tgt_mask, memory_mask, tgt_key_padding_mask, 
+    def forward(self, tgt, memory_key, memory_value, tgt_mask, memory_mask, tgt_key_padding_mask,
                 memory_key_padding_mask, use_cache=False, cache=None, predict_last_n_only=False, keep_all_weights=True):
 
         output = tgt
@@ -217,7 +217,7 @@ class DecoderStack(nn.Module):
                 cache_t.append(output)
                 if cache is not None:
                     output = torch.cat([cache[i], output], dim=0)
-        
+
             if keep_all_weights:
                 all_weights["self"].append(weights_self)
                 all_weights["mix"].append(weights_cross)
@@ -248,18 +248,18 @@ class Decoder(nn.Module):
         self.end_relu = nn.ReLU()
 
         self.out_layer = nn.Conv1d(d_model, out_categories, kernel_size=1)
-    
+
     def set_lm_mode(self):
         self.decoder.set_lm_mode()
-    
+
     def set_transcription_mode(self):
         self.decoder.set_transcription_mode()
 
-    def forward(self, raw_features_1D, enhanced_features_1D, tokens, 
+    def forward(self, raw_features_1D, enhanced_features_1D, tokens,
                 reduced_size, token_len, features_size, hidden_predict=None, num_pred=None, cache=None, keep_all_weights=True):
-        
+
         device = raw_features_1D.device
-        
+
         pos_tokens = self.embedding(tokens).permute(0,2,1)
 
         pos_tokens = self.positional_1D(pos_tokens, start=0)
@@ -267,12 +267,12 @@ class Decoder(nn.Module):
 
         if num_pred is None:
             num_pred = tokens.size(1)
-        
+
         if self.dec_attn_win > 1 and cache is not None:
             cache = cache[:, -self.dec_attn_win-1]
         else:
             cache = None
-        
+
         num_tokens_to_keep = num_pred if self.dec_attn_win is None else min([num_pred + self.dec_attn_win - 1, pos_tokens.size(0), token_len[0]])
         pos_tokens = pos_tokens[-num_tokens_to_keep:]
 
@@ -285,8 +285,8 @@ class Decoder(nn.Module):
         target_mask = target_mask[-num_pred:, -num_tokens_to_keep:]
         key_target_mask = key_target_mask[:, -num_tokens_to_keep:]
 
-        output, weights, cache = self.decoder(pos_tokens, memory_key=enhanced_features_1D, memory_value=raw_features_1D, 
-                                       tgt_mask=target_mask, memory_mask=memory_mask, tgt_key_padding_mask=key_target_mask, 
+        output, weights, cache = self.decoder(pos_tokens, memory_key=enhanced_features_1D, memory_value=raw_features_1D,
+                                       tgt_mask=target_mask, memory_mask=memory_mask, tgt_key_padding_mask=key_target_mask,
                                        memory_key_padding_mask=key_memory_mask, use_cache=True, cache=cache, predict_last_n_only=num_pred, keep_all_weights=keep_all_weights)
 
         dpoutput = self.dropout(self.end_relu(output))
@@ -310,9 +310,9 @@ class Decoder(nn.Module):
         mask = torch.zeros((batch_size, len_mask), dtype=torch.bool, device=device)
         for i, len_ in enumerate(token_len):
             mask[i, :len_] = False
-        
+
         return mask
-    
+
     def generate_target_mask(self, target_len, device):
         if self.dec_attn_win == 1:
             return torch.triu(torch.ones((target_len, target_len), dtype=torch.bool, device=device), diagonal=1)
@@ -330,12 +330,16 @@ class SMTModelForCausalLM(PreTrainedModel):
     def __init__(self, config:SMTConfig):
         super().__init__(config)
         #self.encoder = ConvNextEncoder(config.in_channels, stem_features=64, depths=[4,6], widths=[128, 256])
-        next_config = ConvNextConfig(num_channels=config.in_channels, num_stages=3, hidden_sizes=[64, 128, 256], depths=[3,3,9])
+        conv_next_stages = 3
+        next_config = ConvNextConfig(num_channels=config.in_channels, num_stages=conv_next_stages, hidden_sizes=[64, 128, 256], depths=[3,3,9])
         self.encoder = ConvNextModel(next_config)
-        self.decoder = Decoder(d_model=config.d_model, dim_ff=config.dim_ff, n_layers=config.num_dec_layers, 
+        self.decoder = Decoder(d_model=config.d_model, dim_ff=config.dim_ff, n_layers=config.num_dec_layers,
                                maxlen=config.maxlen, out_categories=config.out_categories, attention_window=config.maxlen + 1)
-        
-        self.positional_2D = PositionalEncoding2D(config.d_model, config.maxh, config.maxw)
+
+        self.width_reduction = 2**(conv_next_stages+1)
+        self.height_reduction = 2**(conv_next_stages+1)
+
+        self.positional_2D = PositionalEncoding2D(config.d_model, config.maxh // self.height_reduction, config.maxw // self.width_reduction)
 
         self.padding_token = config.padding_token
         self.loss = nn.CrossEntropyLoss(ignore_index=self.padding_token)
@@ -343,10 +347,10 @@ class SMTModelForCausalLM(PreTrainedModel):
         self.w2i = config.w2i
         self.i2w = config.i2w
         self.maxlen = int(config.maxlen)
-    
+
     def forward_encoder(self, x):
         return self.encoder(pixel_values=x).last_hidden_state
-    
+
     def forward_decoder(self, encoder_output, y_pred):
         b, _, _, _ = encoder_output.size()
         reduced_size = [s.shape[:2] for s in encoder_output]
@@ -356,8 +360,8 @@ class SMTModelForCausalLM(PreTrainedModel):
         features = torch.flatten(encoder_output, start_dim=2, end_dim=3).permute(2,0,1)
         enhanced_features = features
         enhanced_features = torch.flatten(pos_features, start_dim=2, end_dim=3).permute(2,0,1)
-        output, predictions, _, _, weights = self.decoder(features, enhanced_features, y_pred[:, :], reduced_size, 
-                                                           [max(ylens) for _ in range(b)], encoder_output.size(), 
+        output, predictions, _, _, weights = self.decoder(features, enhanced_features, y_pred[:, :], reduced_size,
+                                                           [max(ylens) for _ in range(b)], encoder_output.size(),
                                                            cache=None, keep_all_weights=True)
         return SMTOutput(
             logits=predictions,
@@ -369,13 +373,13 @@ class SMTModelForCausalLM(PreTrainedModel):
     def forward(self, x, y_pred, labels=None):
         x = self.forward_encoder(x)
         output = self.forward_decoder(x, y_pred)
-        
+
         if labels is not None:
             output.loss = self.loss(output.logits, labels[:, :-1])
-        
+
         return output
-        
-    
+
+
     def predict(self, input, convert_to_str=False):
         predicted_sequence = torch.from_numpy(np.asarray([self.w2i['<bos>']])).to(input.device).unsqueeze(0)
         encoder_output = self.forward_encoder(input)
@@ -389,5 +393,5 @@ class SMTModelForCausalLM(PreTrainedModel):
             if self.i2w[predicted_token] == '<eos>':
                 break
             text_sequence.append(self.i2w[predicted_token])
-        
+
         return text_sequence, predictions
