@@ -25,7 +25,7 @@ def augment(image):
     transform = transforms.Compose(
         [   
             transforms.ToPILImage(),
-            transforms.RandomPerspective(distortion_scale=distortion_perspective, p=1, interpolation=Image.BILINEAR, fill=255),
+            transforms.RandomPerspective(distortion_scale=distortion_perspective, p=0.2, interpolation=Image.BILINEAR, fill=255),
             transforms.RandomApply([ElasticDistortion(grid=(elastic_dist_kernel, elastic_dist_kernel), magnitude=(magnitude_w, magnitude_h), min_sep=(1,1))], p=0.2),
             transforms.RandomApply([RandomTransform(16)], p=0.2),
             transforms.RandomApply([dilation_erosion], p=0.2),
