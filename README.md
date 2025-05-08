@@ -27,12 +27,6 @@
   <a href='#license'>License</a>
 </p>
 
-## Updates
-- The data is publicly available through the HuggingFace Datasets 🤗 library!
-- The model has been updated with the HuggingFace Transformers 🤗 library!
-- Usage instructions included!
-- The paper was accepted at **ICDAR 2024**!
-
 ## About
 
 This GitHub repository contains the implementation of the Sheet Music Transfomrmer (SMT), a novel model for Optical Music Recognition (OMR) beyond monophonic level transcription. Unlike traditional approaches that primarily leverage monophonic transcription techniques for complex score layouts, the SMT model overcomes these limitations by offering a robust image-to-sequence solution for transcribing polyphonic musical scores directly from images.
@@ -42,20 +36,10 @@ This GitHub repository contains the implementation of the Sheet Music Transfomrm
 </p>
 
 # Project setup
-This implementation has been developed in Python 3.9, PyTorch 2.0 and CUDA 12.0. 
-
-It should work in earlier versions.
-
-To setup a project, run the following configuration instructions:
-
-### Python virtual environment
-
-Create a virtual environment using either virtualenv or conda and run the following:
+This project contains the [`uv`](https://docs.astral.sh/uv/) Python dependencies manager. To start a new virtual environment, simply run:
 
 ```sh
-git clone https://github.com/antoniorv6/SMT.git
-pip install -r requirements.txt
-mkdir Data
+uv sync
 ```
 
 ### Docker
@@ -66,7 +50,7 @@ docker build -t <your_tag> .
 docker run -itd --rm --gpus all --shm-size=8gb -v <repository_path>:/workspace/ <image_tag>
 docker exec -it <docker_container_id> /bin/bash
 ```
-# Hey, I just want to use the SMT!
+# I just want to use the SMT!
 Using the SMT for transcribing scores is very easy, thanks to the HuggingFace Transformers 🤗 library. Just implement the following code and you will have the SMT up and running for transcribing excerpts!
 ```python
 import torch
@@ -76,7 +60,7 @@ from smt_model import SMTModelForCausalLM
 
 image = cv2.imread("sample.jpg")
 device = "cuda" if torch.cuda.is_available() else "cpu"
-model = SMTModelForCausalLM.from_pretrained("antoniorv6/<smt-weights>").to(device)
+model = SMTModelForCausalLM.from_pretrained("<model_reference>").to(device)
 
 predictions, _ = model.predict(convert_img_to_tensor(image).unsqueeze(0).to(device), 
                                convert_to_str=True)
@@ -84,6 +68,12 @@ predictions, _ = model.predict(convert_img_to_tensor(image).unsqueeze(0).to(devi
 print("".join(predictions).replace('<b>', '\n').replace('<s>', ' ').replace('<t>', '\t'))
 
 ```
+
+Please, replace the `<model_reference>` with the implementation of the SMT it suits your purpose. Currently, this project hosts two models:
+
+- [antoniorv6/smt-grandstaff](https://huggingface.co/antoniorv6/smt-grandstaff)
+- [antoniorv6/smt-camera-grandstaff](https://huggingface.co/antoniorv6/smt-camera-grandstaff)
+- [antoniorv6/smt-string-quartets](https://huggingface.co/antoniorv6/smt-string-quartets/settings)
 
 # Data
 
@@ -104,11 +94,24 @@ These experiments run under the Weights & Biases API and the ```JSON``` config. 
 
 ```sh
 wandb login
-python train.py --config_path <config-path>
+uv train.py --config_path <config-path>
 ```
 The config files are located in the ```config/``` folder, depending on the executed config file, a specific experiment will be run.
 
-You can make your own config files to train the SMT on your own data! Just, please, if you are using this code, **I highly recommend to use your datasets in the same format provided in the HuggingFace Datasets specification to work with this model. If not, I suggest to make your own data.py file from scratch**
+You can make your own config files to train the SMT on your own data! 
+> [!TIP] I highly recommend to use your datasets in the same format provided in the HuggingFace Datasets specification to work with this model. If not, I suggest to make your own data.py file from scratch. Please refer to the Data section to know how to structure your dataset. 
+
+# Benchmarks
+Currently, the available model (SMT NeXt) reports the following metrics:
+
+| **Corpus**             |  | **SMT NeXt**         |          |
+|------------------------|-------------|---------|---------|
+|                        | **CER**     | **SER** | **LER** |
+| GrandStaff (Ideal)     | **3.9**     | **5.1** | **13.1** |
+| GrandStaff (Camera)    | **5.3**     | **6.2** | **13.5** |
+| Quartets               | **1.3**     | **1.4** | **5.6**  |
+
+
 
 ## Citations
 
@@ -130,6 +133,8 @@ You can make your own config files to train the SMT on your own data! Just, plea
 ## Acknowledgments
 
 This work is part of the I+D+i PID2020-118447RA-I00 ([MultiScore](https://sites.google.com/view/multiscore-project)) project, funded by MCIN/AEI/10.13039/501100011033. Computational resources were provided by the Valencian Government and FEDER funding through IDIFEDER/2020/003.
+
+
 
 ## License
 
