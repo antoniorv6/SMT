@@ -340,14 +340,18 @@ class SMTModelForCausalLM(PreTrainedModel):
     
     def __init__(self, config:SMTConfig):
         super().__init__(config)
+        conv_next_stages = 3
         next_config = ConvNextConfig(num_channels=config.in_channels, 
-                                     num_stages=3, hidden_sizes=[64,128,256], depths=[3,3,9])
+                                     num_stages=conv_next_stages, hidden_sizes=[64,128,256], depths=[3,3,9])
         self.encoder = ConvNextModel(next_config)
         self.decoder = Decoder(num_dec_layers=config.num_dec_layers, 
                                d_model=config.d_model, dim_ff=config.dim_ff, n_heads=config.num_attn_heads,
                                max_seq_length=config.maxlen, out_categories=config.out_categories)
-        
-        self.pos2D = PositionalEncoding2D(dim=config.d_model, h_max=config.maxh, w_max=config.maxw)
+
+        self.width_reduction = 2**(conv_next_stages+1)
+        self.height_reduction = 2**(conv_next_stages+1)
+
+        self.pos2D = PositionalEncoding2D(dim=config.d_model, h_max=config.maxh // self.height_reduction, w_max=config.maxw // self.width_reduction)
         
         self.padding_token = config.padding_token
         
