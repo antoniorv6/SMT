@@ -43,7 +43,7 @@ def prepare_data(sample, reduce_ratio=1.0, fixed_size=None):
 
 def load_set(dataset, split="train", reduce_ratio=1.0, fixed_size=None):
     ds = datasets.load_dataset(dataset, split=split)
-    ds = ds.map(prepare_data, fn_kwargs={"reduce_ratio": reduce_ratio, fixed_size=fixed_size})
+    ds = ds.map(prepare_data, fn_kwargs={"reduce_ratio": reduce_ratio, "fixed_size": fixed_size})
 
     return ds
 
