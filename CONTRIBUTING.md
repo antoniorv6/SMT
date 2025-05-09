@@ -57,7 +57,9 @@ From the GitHub interface, [submit your pull request](https://help.github.com/en
 
 *Note: All contributions will be licensed under the project's license.*
 
-- **Smaller is better.** Submit **one** pull request per bug fix or feature. A pull request should contain isolated changes pertaining to a single bug fix or feature implementation. **Do not** refactor or reformat code that is unrelated to your change. It is better to **submit many small pull requests** rather than a single large one. Enormous pull requests will take enormous amounts of time to review, or may be rejected altogether. 
+- **Smaller is better.** Submit **one** pull request per bug fix or feature. A pull request should contain isolated changes pertaining to a single bug fix or feature implementation. **Do not** refactor or reformat code that is unrelated to your change. It is better to **submit many small pull requests** rather than a single large one. Enormous pull requests will take enormous amounts of time to review, or may be rejected altogether.
+
+- **Test before opening requests.** Please, verify that the results you get with your branch are similar to the ones presented in the paper. If your solution improves the paper, please **notify the support team to verify and include your results**. This is an open-source project, so all performance improvements will be credited to the author of the commit.
 
 - **Coordinate bigger changes.** For large and non-trivial changes, open an issue to discuss a strategy with the maintainers. Otherwise, you risk doing a lot of work for nothing!
 
