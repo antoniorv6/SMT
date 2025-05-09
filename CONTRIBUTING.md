@@ -35,7 +35,7 @@ Follow recommendations on the main [README](https://github.com/antoniorv6/SMT/#p
 #### 4. Create a Branch
 
 ```bash
-git checkout -b fix/issue-description
+git switch -c fix/issue-description
 ```
 
 #### 5. Write code (& commits)
