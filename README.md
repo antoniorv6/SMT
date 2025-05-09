@@ -21,7 +21,8 @@
 
 <p align='center'>
   <a href='#about'>About</a> •
-  <a href='#how-to-use'>How To Use</a> •
+  <a href='#contributing'>Contributing</a> •
+  <a href='#i-just-want-to-use-the-smt'>How To Use</a> •
   <a href='#citations'>Citations</a> •
   <a href='#acknowledgments'>Acknowledgments</a> •
   <a href='#license'>License</a>
@@ -34,6 +35,13 @@ This GitHub repository contains the implementation of the Sheet Music Transfomrm
 <p align="center">
   <img src="graphics/SMT.jpg" alt="content" style="border: 1px solid black; width: 800px;">
 </p>
+
+## Contributing
+
+If you plan to contribute, please read our [Contributing Guidelines](./CONTRIBUTING.md) first. 
+It contains information on how to set up the environment, coding conventions, how to submit pull requests, and how to write clear commit messages.
+
+Feel free to open an [issue](https://github.com/antoniorv6/SMT/issues) if you have a question, idea, or discover a problem.
 
 # Project setup
 This project contains the [`uv`](https://docs.astral.sh/uv/) Python dependencies manager. To start a new virtual environment, simply run:
