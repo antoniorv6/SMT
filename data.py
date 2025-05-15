@@ -36,7 +36,7 @@ def prepare_data(sample, reduce_ratio=1.0, fixed_size=None):
     gt = gt.replace("\t", " <t> ")
     gt = gt.replace("\n", " <b> ")
 
-    sample["transcription"] = gt.split(" ")
+    sample["transcription"] = ["<bos>"] + gt.split(" ") + ["<eos>"]
     sample["image"] = pil_image.fromarray(img)
 
     return sample
