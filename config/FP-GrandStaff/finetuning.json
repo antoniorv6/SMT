@@ -1,0 +1,10 @@
+{
+	"data": {
+		"data_path": "antoniorv6/full-page-grandstaff",
+		"batch_size": 1,
+		"vocab_name": "FP_GrandStaff_BeKern",
+		"num_workers": 20,
+		"krn_format": "bekern",
+		"reduce_ratio": 1.0
+	}
+}

@@ -289,8 +289,6 @@ class SyntheticOMRDataset(OMRIMG2SEQDataset):
     def __len__(self):
         return self.dataset_len
 
-# TODO: continue from here
-# TODO: revise that all the required datasets are present in the file
 # NOTE: Synthetic GrandStaff system-level for pre-training
 # NOTE: GrandStaff Curriculum Learning for system-to-page curriculum training
 class CurriculumTrainingDataset(GrandStaffFullPage):
@@ -464,7 +462,7 @@ class SyntheticCLGrandStaffDataset(LightningDataModule):
         self.num_workers = config.data.num_workers
         self.krn_format = config.data.krn_format
 
-        self.train_dataset = GrandStaffFullPageCurriculumLearning(augment=True, krn_format=self.krn_format, reduce_ratio=config.data.reduce_ratio)
+        self.train_dataset = GrandStaffFullPageCurriculumLearning(data_path=self.data_path, split="train", augment=True, krn_format=self.krn_format, reduce_ratio=config.data.reduce_ratio)
         self.val_dataset = GrandStaffFullPage(data_path=self.data_path, split="val", augment=False, krn_format=self.krn_format, reduce_ratio=config.data.reduce_ratio)
         self.test_dataset = GrandStaffFullPage(data_path=self.data_path, split="test", augment=False, krn_format=self.krn_format, reduce_ratio=config.data.reduce_ratio)
         w2i, i2w = check_and_retrieveVocabulary([self.train_dataset.get_gt(), self.val_dataset.get_gt(), self.test_dataset.get_gt()], "vocab/", f"{self.vocab_name}")#
