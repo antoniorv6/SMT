@@ -17,32 +17,7 @@ from cairosvg import svg2png
 
 import names
 from wonderwords import RandomSentence
-
-def clean_kern(krn, avoid_tokens=['*Xped', '*staff1', '*staff2', '*tremolo', '*ped', '*Xtuplet', '*tuplet', "*Xtremolo", '*cue', '*Xcue', '*rscale:1/2', '*rscale:1', '*kcancel', '*below']):
-    krn = krn.split('\n')
-    newkrn = []
-    # Remove the lines that contain the avoid tokens
-    for idx, line in enumerate(krn):
-        if not any([token in line.split('\t') for token in avoid_tokens]):
-            #If all the tokens of the line are not '*'
-            if not all([token == '*' for token in line.split('\t')]):
-                newkrn.append(line.replace("\n", ""))
-                
-    return "\n".join(newkrn)
-
-#@memory.cache
-def parse_kern(krn: str) -> str:
-    krn = clean_kern(krn)
-    krn = krn.replace(" ", " <s> ")
-    krn = krn.replace("\t", " <t> ")
-    krn = krn.replace("\n", " <b> ")
-    krn = krn.replace("·/", "")
-    krn = krn.replace("·\\", "")
-        
-    krn = krn.split(" ")[4:]
-    krn = [re.sub(r'(?<=\=)\d+', '', token) for token in krn]
-    
-    return " ".join(krn)
+from utils import clean_kern, parse_kern
 
 def load_from_files_list(dataset_ref: list, split:str="train") -> list:
     return [parse_kern(content) for content in progress.track(load_dataset(dataset_ref, split=split)["transcription"])]
@@ -54,12 +29,12 @@ def rint(start, end):
     return random.randint(start, end)        
 
 class VerovioGenerator():
-    def __init__(self, sources: list, split="train", tokenization_mode='bekern'):
+    def __init__(self, sources: list, split="train", krn_format='bekern'):
         self.beat_db = self.load_beats(sources, split=split)
         verovio.enableLog(verovio.LOG_OFF)
         self.tk = verovio.toolkit()
         
-        self.tokenization_mode = tokenization_mode
+        self.krn_format = krn_format
         self.title_generator = RandomSentence()
         self.textures = [os.path.join("Generator/paper_textures", f) for f in os.listdir("Generator/paper_textures") if os.path.isfile(os.path.join("Generator/paper_textures", f))]
 
@@ -169,13 +144,13 @@ class VerovioGenerator():
         
         gt_sequence = ""
         
-        if self.tokenization_mode == "kern":
+        if self.krn_format == "kern":
             gt_sequence = "".join(music_seq).replace("<s>", " <s> ").replace("<b>", " <b> ").replace("<t>", " <t> ").replace("·", "").replace('@', '').split(" ")
         
-        if self.tokenization_mode == "ekern":
+        if self.krn_format == "ekern":
             gt_sequence = "".join(music_seq).replace("<s>", " <s> ").replace("<b>", " <b> ").replace("<t>", " <t> ").replace("·", " ").replace('@', '').split(" ")
         
-        if self.tokenization_mode == "bekern":
+        if self.krn_format == "bekern":
             gt_sequence = "".join(music_seq).replace("<s>", " <s> ").replace("<b>", " <b> ").replace("<t>", " <t> ").replace("·", " ").replace("@", " ").split(" ")
 
         return x, ['<bos>'] + [token for token in gt_sequence if token != ''] + ['<eos>']
@@ -242,15 +217,13 @@ class VerovioGenerator():
    
         gt_sequence = ""
         
-        if self.tokenization_mode == "kern":
+        if self.krn_format == "kern":
             gt_sequence = "".join(complete_score).replace("<s>", " <s> ").replace("<b>", " <b> ").replace("<t>", " <t> ").replace("·", "").replace('@', '').split(" ")
         
-        if self.tokenization_mode == "ekern":
+        if self.krn_format == "ekern":
             gt_sequence = "".join(complete_score).replace("<s>", " <s> ").replace("<b>", " <b> ").replace("<t>", " <t> ").replace("·", " ").replace('@', '').split(" ")
         
-        if self.tokenization_mode == "bekern":
+        if self.krn_format == "bekern":
             gt_sequence = "".join(complete_score).replace("<s>", " <s> ").replace("<b>", " <b> ").replace("<t>", " <t> ").replace("·", " ").replace("@", " ").split(" ")
 
         return x, ['<bos>'] + [token for token in gt_sequence if token != ''] + ['<eos>']
-                
-        

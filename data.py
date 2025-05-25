@@ -10,11 +10,12 @@ import wandb
 import datasets
 from ExperimentConfig import ExperimentConfig
 from data_augmentation.data_augmentation import augment, convert_img_to_tensor
-from utils import check_and_retrieveVocabulary
+from utils import check_and_retrieveVocabulary, parse_kern
 from rich import progress
 from lightning import LightningDataModule
 from torch.utils.data import Dataset
 from torchvision import transforms
+from SynthGenerator import VerovioGenerator
 
 # For single-system datasets
 def prepare_data(sample, reduce_ratio=1.0, fixed_size=None):
@@ -49,45 +50,12 @@ def load_set(dataset, split="train", reduce_ratio=1.0, fixed_size=None):
     return ds
 
 # For full-page datasets
-def clean_kern(
-        krn: str,
-        forbidden_tokens: list[str] = ["*tremolo","*staff2", "*staff1","*Xped", "*tremolo", "*ped", "*Xtuplet", "*tuplet", "*Xtremolo", "*cue", "*Xcue", "*rscale:1/2", "*rscale:1", "*kcancel", "*below"]
-        ) -> str:
-    forbidden_pattern = "(" + "|".join([t.replace("*", "\*") for t in forbidden_tokens]) + ")"
-    krn = re.sub(f".*{forbidden_pattern}.*\n", "", krn) # Remove lines containing any of the forbidden tokens
-    krn = re.sub("(?<=^|\n)\*(\s\*)*\n", "", krn) # Remove lines that only contain "*" tokens
-    return krn.strip("\n")
-
-def parse_kern(
-        krn: str,
-        krn_format: Literal["kern"] | Literal["ekern"] | Literal["bekern"] = "bekern"
-        ) -> list[str]:
-    krn = clean_kern(krn)
-    krn = krn.replace(" ", " <s> ")
-    krn = krn.replace("\t", " <t> ")
-    krn = krn.replace("\n", " <b> ")
-    krn = krn.replace(" /", "")
-    krn = krn.replace(" \\", "")
-    krn = krn.replace("·/", "")
-    krn = krn.replace("·\\", "")
-
-    if krn_format == "kern":
-        krn = krn.replace("·", "").replace('@', '')
-    elif krn_format == "ekern":
-        krn = krn.replace("·", " ").replace('@', '')
-    elif krn_format == "bekern":
-        krn = krn.replace("·", " ").replace("@", " ")
-
-    krn = re.sub("(?<=\=)\d+", "", krn)
-
-    return krn.split(" ")[4:] # Remove **kern, **ekern and **bekern header
-
 def prepare_fp_data(
         sample,
         reduce_ratio: float = 1.0,
         krn_format: Literal["kern"] | Literal["ekern"] | Literal["bekern"] = "bekern",
         ):
-    sample["transcription"] = ['<bos>'] + parse_kern(sample["transcription"], krn_format=krn_format) + ['<eos>']
+    sample["transcription"] = ['<bos>'] + parse_kern(sample["transcription"], krn_format=krn_format)[4:] + ['<eos>'] # Remove **kern, **ekern and **bekern header
 
     img = img = np.array(sample['image'])
     width = int(np.ceil(img.shape[1] * reduce_ratio))
@@ -227,6 +195,7 @@ class GrandStaffSingleSystem(OMRIMG2SEQDataset):
 
     def get_width_avgs(self):
         widths = [s["image"].size[1] for s in self.data]
+
         return np.average(widths), np.max(widths), np.min(widths)
 
     def get_max_hw(self):
@@ -265,12 +234,12 @@ class GrandStaffFullPage(GrandStaffSingleSystem):
 
     def __init__(
             self,
-            data_path,
-            split,
-            teacher_forcing_error_rate=0.2,
-            reduce_ratio=1.0,
-            augment=False,
-            krn_format="bekern",
+            data_path: str,
+            split: str = "train",
+            teacher_forcing_perc: float = 0.2,
+            reduce_ratio: float = 1.0,
+            augment: bool = False,
+            krn_format: str = "bekern",
             *args, **kwargs
             ):
         OMRIMG2SEQDataset.__init__(
@@ -283,61 +252,81 @@ class GrandStaffFullPage(GrandStaffSingleSystem):
 
         self.data = load_from_files_list(data_path, split, krn_format, reduce_ratio=reduce_ratio)
 
-# TODO: continue from here
-# TODO: revise that all the required datasets are present in the file
-# NOTE: Synthetic GrandStaff system-level for pre-training
-# NOTE: GrandStaff Curriculum Learning for system-to-page curriculum training
-class CurriculumTrainingDataset(OMRIMG2SEQDataset):
+class SyntheticOMRDataset(OMRIMG2SEQDataset):
+    """Synthetic dataset using VerovioGenerator"""
     def __init__(
             self,
             data_path: str,
-            sources: str = "antoniorv6/grandstaff-ekern",
             split: str = "train",
+            number_of_systems: int = 1,
             teacher_forcing_perc: float = 0.2,
-            reduce_ratio: float = 1.0,
+            reduce_ratio: float = .5,
+            dataset_length: int = 40000,
             augment: bool = False,
             krn_format: str = "bekern"
             ) -> None:
         super().__init__(teacher_forcing_perc, augment)
+        self.generator = VerovioGenerator(sources=data_path, split=split, krn_format=krn_format)
 
-        self.reduce_ratio = reduce_ratio
-        self.krn_format = krn_format
-
-        self.data = load_from_files_list(data_path, split, krn_format, reduce_ratio=reduce_ratio)
-        self.generator = VerovioGenerator(sources=sources, split=split, krn_format=krn_format)
+        self.num_sys_gen: int = number_of_systems
+        self.dataset_len: int = dataset_length
         self.reduce_ratio: float = reduce_ratio
+        self.krn_format: str = krn_format
 
-        self.max_synth_prob = 0.9
-        self.min_synth_prob = 0.2
-        self.finetune_steps = 200000
-        self.increase_steps = 40000
-        self.num_cl_steps = 3
-        self.max_cl_steps = self.increase_steps * self.num_cl_steps
-        self.curriculum_stage_beginning = 2
+    def __getitem__(self, index):
+        x, y = self.generator.generate_music_system_image()
 
-    def get_width_avgs(self):
-        widths = [s["image"].size[1] for s in self.data]
+        if self.augment:
+            x = augment(x)
+        else:
+            x = convert_img_to_tensor(x)
 
-        return np.average(widths), np.max(widths), np.min(widths)
+        y = torch.from_numpy(np.asarray([self.w2i[token] for token in y]))
+        decoder_input = self.apply_teacher_forcing(y)
 
-    def get_max_hw(self):
-        m_height = np.max([s["image"].size[0] for s in self.data])
-        m_width = np.max([s["image"].size[1] for s in self.data])
-
-        return m_height, m_width
-
-    def get_max_seqlen(self):
-        return np.max([len(s["transcription"]) for s in self.data])
+        return x, decoder_input, y
 
     def __len__(self):
-        return len(self.data)
+        return self.dataset_len
 
-    def get_gt(self):
-        return self.data["transcription"]
-    
+# TODO: continue from here
+# TODO: revise that all the required datasets are present in the file
+# NOTE: Synthetic GrandStaff system-level for pre-training
+# NOTE: GrandStaff Curriculum Learning for system-to-page curriculum training
+class CurriculumTrainingDataset(GrandStaffFullPage):
+    def __init__(
+            self,
+            data_path: str,
+            synthetic_sources: str,
+            split: str = "train",
+            teacher_forcing_perc: float = 0.2,
+            reduce_ratio: float = 1.0,
+            augment: bool = False,
+            krn_format: str = "bekern",
+            *args, **kwargs
+            ) -> None:
+        super().__init__(
+                data_path=data_path,
+                split=split,
+                teacher_forcing_perc=teacher_forcing_perc,
+                reduce_ratio=reduce_ratio,
+                augment=augment,
+                krn_format=krn_format,
+                *args, **kwargs
+                )
+        self.generator = VerovioGenerator(sources=synthetic_sources, split=split, krn_format=krn_format)
+
+        self.max_synth_prob: float = 0.9
+        self.min_synth_prob: float = 0.2
+        self.finetune_steps: int = 200000
+        self.increase_steps: int = 40000
+        self.num_cl_steps: int = 3
+        self.max_cl_steps: int = self.increase_steps * self.num_cl_steps
+        self.curriculum_stage_beginning: int = 2
+
     def set_trainer_data(self, trainer):
         self.trainer = trainer
-    
+
     def linear_scheduler_synthetic(self, step):
         return self.max_synth_prob + round((step - self.max_cl_steps) * (self.min_synth_prob - self.max_synth_prob) / self.finetune_steps, 4)
 
@@ -384,37 +373,37 @@ class CurriculumTrainingDataset(OMRIMG2SEQDataset):
 
         return x, decoder_input, y
 
-    def __len__(self):
-       return len(self.data)
-
 class GrandStaffFullPageCurriculumLearning(CurriculumTrainingDataset):
     def __init__(
             self,
             data_path: str,
-            sources: str = "antoniorv6/grandstaff-ekern",
+            synthetic_sources: str = "antoniorv6/grandstaff-ekern",
             split: str = "train",
             teacher_forcing_perc: float = 0.2,
             reduce_ratio: float = .5,
             augment: bool = False,
-            krn_format: str = "bekern"
+            krn_format: str = "bekern",
+            *args, **kwargs
             ) -> None:
        super().__init__(
                 data_path=data_path,
-                sources="antoniorv6/grandstaff-ekern",
+                synthetic_sources=synthetic_sources,
                 split=split,
                 teacher_forcing_perc=teacher_forcing_perc,
                 reduce_ratio=reduce_ratio,
                 augment=augment,
-                krn_format=krn_format
+                krn_format=krn_format,
+                *args, **kwargs
                 )
 
+# Huggingface system-level GrandStaff training
 class GrandStaffDataset(LightningDataModule):
     def __init__(self, config:ExperimentConfig) -> None:
         super().__init__()
-        self.data_path = config.data_path
-        self.vocab_name = config.vocab_name
-        self.batch_size = config.batch_size
-        self.num_workers = config.num_workers
+        self.data_path = config.data.data_path
+        self.vocab_name = config.data.vocab_name
+        self.batch_size = config.data.batch_size
+        self.num_workers = config.data.num_workers
         self.train_set = GrandStaffSingleSystem(data_path=self.data_path, split="train", augment=True)
         self.val_set = GrandStaffSingleSystem(data_path=self.data_path, split="val",)
         self.test_set = GrandStaffSingleSystem(data_path=self.data_path, split="test",)
@@ -433,3 +422,62 @@ class GrandStaffDataset(LightningDataModule):
 
     def test_dataloader(self):
         return torch.utils.data.DataLoader(self.test_set, batch_size=self.batch_size, num_workers=self.num_workers, collate_fn=batch_preparation_img2seq)
+
+# Synthetic system-level GrandStaff training
+# NOTE: Pre-train the SMT on system-level data using this dataset
+class SyntheticGrandStaffDataset(LightningDataModule):
+    def __init__(self, config:ExperimentConfig) -> None:
+        super().__init__()
+        self.data_path = config.data.data_path
+        self.vocab_name = config.data.vocab_name
+        self.batch_size = config.data.batch_size
+        self.num_workers = config.data.num_workers
+        self.krn_format = config.data.krn_format
+
+        self.train_dataset: SyntheticOMRDataset = SyntheticOMRDataset(data_path=self.data_path, split="train", dataset_length=40000, augment=True, krn_format=self.krn_format)
+        self.val_dataset: SyntheticOMRDataset = SyntheticOMRDataset(data_path=self.data_path, split="val", dataset_length=1000, augment=False, krn_format=self.krn_format)
+        self.test_dataset: SyntheticOMRDataset = SyntheticOMRDataset(data_path=self.data_path, split="test", dataset_length=1000, augment=False, krn_format=self.krn_format)
+        w2i, i2w = check_and_retrieveVocabulary([self.train_dataset.get_gt(), self.val_dataset.get_gt(), self.test_dataset.get_gt()], "vocab/", f"{self.vocab_name}")#
+    
+        self.train_dataset.set_dictionaries(w2i, i2w)
+        self.val_dataset.set_dictionaries(w2i, i2w)
+        self.test_dataset.set_dictionaries(w2i, i2w)
+        
+    def train_dataloader(self):
+        return torch.utils.data.DataLoader(self.train_dataset, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=True, collate_fn=batch_preparation_img2seq)
+    
+    def val_dataloader(self):
+        return torch.utils.data.DataLoader(self.val_dataset, batch_size=self.batch_size, num_workers=self.num_workers, collate_fn=batch_preparation_img2seq)
+    
+    def test_dataloader(self):
+        return torch.utils.data.DataLoader(self.test_dataset, batch_size=self.batch_size, num_workers=self.num_workers, collate_fn=batch_preparation_img2seq)
+
+# Synthetic system-to-full-page GrandStaff curriculum training
+# NOTE: Fine-tune the SMT on page-level data with curriculum learning
+# NOTE: using this dataset
+class SyntheticCLGrandStaffDataset(LightningDataModule):
+    def __init__(self, config:ExperimentConfig, fold=0) -> None:
+        super().__init__()
+        self.data_path = config.data.data_path
+        self.vocab_name = config.data.vocab_name
+        self.batch_size = config.data.batch_size
+        self.num_workers = config.data.num_workers
+        self.krn_format = config.data.krn_format
+
+        self.train_dataset = GrandStaffFullPageCurriculumLearning(augment=True, krn_format=self.krn_format, reduce_ratio=config.data.reduce_ratio)
+        self.val_dataset = GrandStaffFullPage(data_path=self.data_path, split="val", augment=False, krn_format=self.krn_format, reduce_ratio=config.data.reduce_ratio)
+        self.test_dataset = GrandStaffFullPage(data_path=self.data_path, split="test", augment=False, krn_format=self.krn_format, reduce_ratio=config.data.reduce_ratio)
+        w2i, i2w = check_and_retrieveVocabulary([self.train_dataset.get_gt(), self.val_dataset.get_gt(), self.test_dataset.get_gt()], "vocab/", f"{self.vocab_name}")#
+    
+        self.train_dataset.set_dictionaries(w2i, i2w)
+        self.val_dataset.set_dictionaries(w2i, i2w)
+        self.test_dataset.set_dictionaries(w2i, i2w)
+        
+    def train_dataloader(self):
+        return torch.utils.data.DataLoader(self.train_dataset, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=True, collate_fn=batch_preparation_img2seq)
+    
+    def val_dataloader(self):
+        return torch.utils.data.DataLoader(self.val_dataset, batch_size=self.batch_size, num_workers=self.num_workers, collate_fn=batch_preparation_img2seq)
+    
+    def test_dataloader(self):
+        return torch.utils.data.DataLoader(self.test_dataset, batch_size=self.batch_size, num_workers=self.num_workers, collate_fn=batch_preparation_img2seq)

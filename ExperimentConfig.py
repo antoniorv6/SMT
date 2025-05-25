@@ -38,6 +38,7 @@ class Data:
     img_format: str
     num_workers: int
     reduce_ratio: float
+    krn_format: str
 
     @staticmethod
     def from_dict(obj: Any) -> 'Data':
@@ -48,6 +49,7 @@ class Data:
         img_format = from_str(obj.get("img_format"))
         num_workers = from_int(obj.get("num_workers"))
         reduce_ratio = from_float(obj.get("reduce_ratio"))
+        krn_format = from_str(obj.get("krn_format"))
         return Data(data_path, batch_size, vocab_name, img_format, num_workers, reduce_ratio)
 
     def to_dict(self) -> dict:
@@ -58,6 +60,7 @@ class Data:
         result["img_format"] = from_str(self.img_format)
         result["num_workers"] = from_int(self.num_workers)
         result["reduce_ratio"] = to_float(self.reduce_ratio)
+        result["krn_format"] = from_str(self.krn_format)
         return result
 
 
