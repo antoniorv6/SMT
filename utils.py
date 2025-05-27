@@ -1,3 +1,4 @@
+from typing import Literal
 import os
 
 import numpy as np

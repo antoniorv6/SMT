@@ -1,7 +1,7 @@
 import fire
 import json
 import torch
-from data import GrandStaffDataset
+from data import SyntheticGrandStaffDataset
 from smt_trainer import SMT_Trainer
 
 from ExperimentConfig import experiment_config_from_dict
@@ -17,7 +17,7 @@ def main(config_path):
     with open(config_path, "r") as f:
         config = experiment_config_from_dict(json.load(f))
 
-    datamodule = GrandStaffDataset(config=config.data)
+    datamodule = SyntheticGrandStaffDataset(config=config.data)
 
     max_height, max_width = datamodule.train_set.get_max_hw()
     max_len = datamodule.train_set.get_max_seqlen()
@@ -27,7 +27,7 @@ def main(config_path):
                                 in_channels=1, w2i=datamodule.train_set.w2i, i2w=datamodule.train_set.i2w,
                                 d_model=256, dim_ff=256, num_dec_layers=8)
 
-    wandb_logger = WandbLogger(project='SMT_Reimplementation', group="GrandStaff", name="SMT_NexT_GrandStaff", log_model=False)
+    wandb_logger = WandbLogger(project='SMT-FP', group="GrandStaff", name="SMT-System-level", log_model=False)
 
     early_stopping = EarlyStopping(monitor="val_SER", min_delta=0.01, patience=5, mode="min", verbose=True)
 

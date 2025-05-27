@@ -398,10 +398,10 @@ class GrandStaffFullPageCurriculumLearning(CurriculumTrainingDataset):
 class GrandStaffDataset(LightningDataModule):
     def __init__(self, config:ExperimentConfig) -> None:
         super().__init__()
-        self.data_path = config.data.data_path
-        self.vocab_name = config.data.vocab_name
-        self.batch_size = config.data.batch_size
-        self.num_workers = config.data.num_workers
+        self.data_path = config.data_path
+        self.vocab_name = config.vocab_name
+        self.batch_size = config.batch_size
+        self.num_workers = config.num_workers
         self.train_set = GrandStaffSingleSystem(data_path=self.data_path, split="train", augment=True)
         self.val_set = GrandStaffSingleSystem(data_path=self.data_path, split="val",)
         self.test_set = GrandStaffSingleSystem(data_path=self.data_path, split="test",)
@@ -426,11 +426,11 @@ class GrandStaffDataset(LightningDataModule):
 class SyntheticGrandStaffDataset(LightningDataModule):
     def __init__(self, config:ExperimentConfig) -> None:
         super().__init__()
-        self.data_path = config.data.data_path
-        self.vocab_name = config.data.vocab_name
-        self.batch_size = config.data.batch_size
-        self.num_workers = config.data.num_workers
-        self.krn_format = config.data.krn_format
+        self.data_path = config.data_path
+        self.vocab_name = config.vocab_name
+        self.batch_size = config.batch_size
+        self.num_workers = config.num_workers
+        self.krn_format = config.krn_format
 
         self.train_dataset: SyntheticOMRDataset = SyntheticOMRDataset(data_path=self.data_path, split="train", dataset_length=40000, augment=True, krn_format=self.krn_format)
         self.val_dataset: SyntheticOMRDataset = SyntheticOMRDataset(data_path=self.data_path, split="val", dataset_length=1000, augment=False, krn_format=self.krn_format)
@@ -456,15 +456,15 @@ class SyntheticGrandStaffDataset(LightningDataModule):
 class SyntheticCLGrandStaffDataset(LightningDataModule):
     def __init__(self, config:ExperimentConfig, fold=0) -> None:
         super().__init__()
-        self.data_path = config.data.data_path
-        self.vocab_name = config.data.vocab_name
-        self.batch_size = config.data.batch_size
-        self.num_workers = config.data.num_workers
-        self.krn_format = config.data.krn_format
+        self.data_path = config.data_path
+        self.vocab_name = config.vocab_name
+        self.batch_size = config.batch_size
+        self.num_workers = config.num_workers
+        self.krn_format = config.krn_format
 
-        self.train_dataset = GrandStaffFullPageCurriculumLearning(data_path=self.data_path, split="train", augment=True, krn_format=self.krn_format, reduce_ratio=config.data.reduce_ratio)
-        self.val_dataset = GrandStaffFullPage(data_path=self.data_path, split="val", augment=False, krn_format=self.krn_format, reduce_ratio=config.data.reduce_ratio)
-        self.test_dataset = GrandStaffFullPage(data_path=self.data_path, split="test", augment=False, krn_format=self.krn_format, reduce_ratio=config.data.reduce_ratio)
+        self.train_dataset = GrandStaffFullPageCurriculumLearning(data_path=self.data_path, split="train", augment=True, krn_format=self.krn_format, reduce_ratio=config.reduce_ratio)
+        self.val_dataset = GrandStaffFullPage(data_path=self.data_path, split="val", augment=False, krn_format=self.krn_format, reduce_ratio=config.reduce_ratio)
+        self.test_dataset = GrandStaffFullPage(data_path=self.data_path, split="test", augment=False, krn_format=self.krn_format, reduce_ratio=config.reduce_ratio)
         w2i, i2w = check_and_retrieveVocabulary([self.train_dataset.get_gt(), self.val_dataset.get_gt(), self.test_dataset.get_gt()], "vocab/", f"{self.vocab_name}")#
     
         self.train_dataset.set_dictionaries(w2i, i2w)
