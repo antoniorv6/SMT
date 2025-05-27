@@ -1,5 +1,6 @@
 from typing import Literal
 import os
+import re
 
 import numpy as np
 
@@ -80,8 +81,8 @@ def clean_kern(
         ) -> str:
     forbidden_pattern = "(" + "|".join([t.replace("*", "\*") for t in forbidden_tokens]) + ")"
     krn = re.sub(f".*{forbidden_pattern}.*\n", "", krn) # Remove lines containing any of the forbidden tokens
-    krn = re.sub("(?<=^|\n)\*(\s\*)*\n", "", krn) # Remove lines that only contain "*" tokens
-    return krn.strip("\n")
+    krn = re.sub("(^|(?<=\n))\*(\s\*)*(\n|$)", "", krn) # Remove lines that only contain "*" tokens
+    return krn.strip()
 
 def parse_kern(
         krn: str,
