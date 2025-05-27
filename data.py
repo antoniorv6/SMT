@@ -273,6 +273,9 @@ class SyntheticOMRDataset(OMRIMG2SEQDataset):
         self.reduce_ratio: float = reduce_ratio
         self.krn_format: str = krn_format
 
+        self.x = None
+        self.y = None
+
     def __getitem__(self, index):
         x, y = self.generator.generate_music_system_image()
 
@@ -432,23 +435,23 @@ class SyntheticGrandStaffDataset(LightningDataModule):
         self.num_workers = config.num_workers
         self.krn_format = config.krn_format
 
-        self.train_dataset: SyntheticOMRDataset = SyntheticOMRDataset(data_path=self.data_path, split="train", dataset_length=40000, augment=True, krn_format=self.krn_format)
-        self.val_dataset: SyntheticOMRDataset = SyntheticOMRDataset(data_path=self.data_path, split="val", dataset_length=1000, augment=False, krn_format=self.krn_format)
-        self.test_dataset: SyntheticOMRDataset = SyntheticOMRDataset(data_path=self.data_path, split="test", dataset_length=1000, augment=False, krn_format=self.krn_format)
-        w2i, i2w = check_and_retrieveVocabulary([self.train_dataset.get_gt(), self.val_dataset.get_gt(), self.test_dataset.get_gt()], "vocab/", f"{self.vocab_name}")#
+        self.train_set: SyntheticOMRDataset = SyntheticOMRDataset(data_path=self.data_path, split="train", dataset_length=40000, augment=True, krn_format=self.krn_format)
+        self.val_set: SyntheticOMRDataset = SyntheticOMRDataset(data_path=self.data_path, split="val", dataset_length=1000, augment=False, krn_format=self.krn_format)
+        self.test_set: SyntheticOMRDataset = SyntheticOMRDataset(data_path=self.data_path, split="test", dataset_length=1000, augment=False, krn_format=self.krn_format)
+        w2i, i2w = check_and_retrieveVocabulary([self.train_set.get_gt(), self.val_set.get_gt(), self.test_set.get_gt()], "vocab/", f"{self.vocab_name}")#
     
-        self.train_dataset.set_dictionaries(w2i, i2w)
-        self.val_dataset.set_dictionaries(w2i, i2w)
-        self.test_dataset.set_dictionaries(w2i, i2w)
+        self.train_set.set_dictionaries(w2i, i2w)
+        self.val_set.set_dictionaries(w2i, i2w)
+        self.test_set.set_dictionaries(w2i, i2w)
         
     def train_dataloader(self):
-        return torch.utils.data.DataLoader(self.train_dataset, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=True, collate_fn=batch_preparation_img2seq)
+        return torch.utils.data.DataLoader(self.train_set, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=True, collate_fn=batch_preparation_img2seq)
     
     def val_dataloader(self):
-        return torch.utils.data.DataLoader(self.val_dataset, batch_size=self.batch_size, num_workers=self.num_workers, collate_fn=batch_preparation_img2seq)
+        return torch.utils.data.DataLoader(self.val_set, batch_size=self.batch_size, num_workers=self.num_workers, collate_fn=batch_preparation_img2seq)
     
     def test_dataloader(self):
-        return torch.utils.data.DataLoader(self.test_dataset, batch_size=self.batch_size, num_workers=self.num_workers, collate_fn=batch_preparation_img2seq)
+        return torch.utils.data.DataLoader(self.test_set, batch_size=self.batch_size, num_workers=self.num_workers, collate_fn=batch_preparation_img2seq)
 
 # Synthetic system-to-full-page GrandStaff curriculum training
 # NOTE: Fine-tune the SMT on page-level data with curriculum learning
@@ -462,20 +465,20 @@ class SyntheticCLGrandStaffDataset(LightningDataModule):
         self.num_workers = config.num_workers
         self.krn_format = config.krn_format
 
-        self.train_dataset = GrandStaffFullPageCurriculumLearning(data_path=self.data_path, split="train", augment=True, krn_format=self.krn_format, reduce_ratio=config.reduce_ratio)
-        self.val_dataset = GrandStaffFullPage(data_path=self.data_path, split="val", augment=False, krn_format=self.krn_format, reduce_ratio=config.reduce_ratio)
-        self.test_dataset = GrandStaffFullPage(data_path=self.data_path, split="test", augment=False, krn_format=self.krn_format, reduce_ratio=config.reduce_ratio)
-        w2i, i2w = check_and_retrieveVocabulary([self.train_dataset.get_gt(), self.val_dataset.get_gt(), self.test_dataset.get_gt()], "vocab/", f"{self.vocab_name}")#
+        self.train_set = GrandStaffFullPageCurriculumLearning(data_path=self.data_path, split="train", augment=True, krn_format=self.krn_format, reduce_ratio=config.reduce_ratio)
+        self.val_set = GrandStaffFullPage(data_path=self.data_path, split="val", augment=False, krn_format=self.krn_format, reduce_ratio=config.reduce_ratio)
+        self.test_set = GrandStaffFullPage(data_path=self.data_path, split="test", augment=False, krn_format=self.krn_format, reduce_ratio=config.reduce_ratio)
+        w2i, i2w = check_and_retrieveVocabulary([self.train_set.get_gt(), self.val_set.get_gt(), self.test_set.get_gt()], "vocab/", f"{self.vocab_name}")#
     
-        self.train_dataset.set_dictionaries(w2i, i2w)
-        self.val_dataset.set_dictionaries(w2i, i2w)
-        self.test_dataset.set_dictionaries(w2i, i2w)
+        self.train_set.set_dictionaries(w2i, i2w)
+        self.val_set.set_dictionaries(w2i, i2w)
+        self.test_set.set_dictionaries(w2i, i2w)
         
     def train_dataloader(self):
-        return torch.utils.data.DataLoader(self.train_dataset, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=True, collate_fn=batch_preparation_img2seq)
+        return torch.utils.data.DataLoader(self.train_set, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=True, collate_fn=batch_preparation_img2seq)
     
     def val_dataloader(self):
-        return torch.utils.data.DataLoader(self.val_dataset, batch_size=self.batch_size, num_workers=self.num_workers, collate_fn=batch_preparation_img2seq)
+        return torch.utils.data.DataLoader(self.val_set, batch_size=self.batch_size, num_workers=self.num_workers, collate_fn=batch_preparation_img2seq)
     
     def test_dataloader(self):
-        return torch.utils.data.DataLoader(self.test_dataset, batch_size=self.batch_size, num_workers=self.num_workers, collate_fn=batch_preparation_img2seq)
+        return torch.utils.data.DataLoader(self.test_set, batch_size=self.batch_size, num_workers=self.num_workers, collate_fn=batch_preparation_img2seq)

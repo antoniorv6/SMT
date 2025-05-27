@@ -89,6 +89,8 @@ def parse_kern(
         krn_format: Literal["kern"] | Literal["ekern"] | Literal["bekern"] = "bekern"
         ) -> list[str]:
     krn = clean_kern(krn)
+    krn = re.sub("(?<=\=)\d+", "", krn)
+
     krn = krn.replace(" ", " <s> ")
     krn = krn.replace("\t", " <t> ")
     krn = krn.replace("\n", " <b> ")
@@ -104,6 +106,4 @@ def parse_kern(
     elif krn_format == "bekern":
         krn = krn.replace("·", " ").replace("@", " ")
 
-    krn = re.sub("(?<=\=)\d+", "", krn)
-
-    return krn.split(" ")
+    return krn.strip().split(" ")
