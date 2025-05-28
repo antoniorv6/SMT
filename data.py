@@ -331,6 +331,15 @@ class CurriculumTrainingDataset(GrandStaffFullPage):
     def linear_scheduler_synthetic(self, step):
         return self.max_synth_prob + round((step - self.max_cl_steps) * (self.min_synth_prob - self.max_synth_prob) / self.finetune_steps, 4)
 
+    def get_stage_calculator(self):
+        step_increase: int = self.increase_steps
+        curriculum_start: int = self.curriculum_stage_beginning
+
+        def stage_calculator(step):
+            return (step // step_increase) + curriculum_start
+
+        return stage_calculator
+
     def __getitem__(self, index):
         step = self.trainer.global_step
         stage = (step // self.increase_steps) + self.curriculum_stage_beginning
