@@ -12,7 +12,7 @@ from lightning.pytorch.callbacks.early_stopping import EarlyStopping
 
 torch.set_float32_matmul_precision('high')
 
-def main(config_path):
+def main(config_path, starting_checkpoint):
 
     with open(config_path, "r") as f:
         config = experiment_config_from_dict(json.load(f))
@@ -22,7 +22,7 @@ def main(config_path):
     max_height, max_width = 2512, 2512 # datamodule.train_set.get_max_hw()
     max_len = 4360 # datamodule.train_set.get_max_seqlen()
 
-    model_wrapper = SMT_Trainer(maxh=int(max_height), maxw=int(max_width), maxlen=int(max_len),
+    model_wrapper = SMT_Trainer.load_from_checkpoint(starting_checkpoint, maxh=int(max_height), maxw=int(max_width), maxlen=int(max_len),
                                 out_categories=len(datamodule.train_set.w2i), padding_token=datamodule.train_set.w2i["<pad>"],
                                 in_channels=1, w2i=datamodule.train_set.w2i, i2w=datamodule.train_set.i2w,
                                 d_model=256, dim_ff=256, num_dec_layers=8)
@@ -51,8 +51,8 @@ def main(config_path):
 
     trainer.test(model, datamodule=datamodule)
 
-def launch(config_path):
-    main(config_path)
+def launch(config_path, starting_checkpoint):
+    main(config_path, starting_checkpoint)
 
 if __name__ == "__main__":
     fire.Fire(launch)
