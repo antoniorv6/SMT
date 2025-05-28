@@ -142,3 +142,6 @@ Data/*
 lightning_logs/
 Data_ICDAR2024.tgz
 hf/*
+
+# Ignore generator textures
+paper_textures
