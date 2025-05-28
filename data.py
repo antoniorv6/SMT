@@ -236,13 +236,14 @@ class GrandStaffFullPage(GrandStaffSingleSystem):
             self,
             data_path: str,
             split: str = "train",
-            teacher_forcing_perc: float = 0.2,
+            teacher_forcing_error_rate: float = 0.2,
             reduce_ratio: float = 1.0,
             augment: bool = False,
             krn_format: str = "bekern",
             *args, **kwargs
             ):
         OMRIMG2SEQDataset.__init__(
+                self,
                 teacher_forcing_error_rate=teacher_forcing_error_rate,
                 augment=augment,
                 *args, **kwargs
@@ -259,13 +260,13 @@ class SyntheticOMRDataset(OMRIMG2SEQDataset):
             data_path: str,
             split: str = "train",
             number_of_systems: int = 1,
-            teacher_forcing_perc: float = 0.2,
+            teacher_forcing_error_rate: float = 0.2,
             reduce_ratio: float = .5,
             dataset_length: int = 40000,
             augment: bool = False,
             krn_format: str = "bekern"
             ) -> None:
-        super().__init__(teacher_forcing_perc, augment)
+        super().__init__(teacher_forcing_error_rate, augment)
         self.generator = VerovioGenerator(sources=data_path, split=split, krn_format=krn_format)
 
         self.num_sys_gen: int = number_of_systems
@@ -300,7 +301,7 @@ class CurriculumTrainingDataset(GrandStaffFullPage):
             data_path: str,
             synthetic_sources: str,
             split: str = "train",
-            teacher_forcing_perc: float = 0.2,
+            teacher_forcing_error_rate: float = 0.2,
             reduce_ratio: float = 1.0,
             augment: bool = False,
             krn_format: str = "bekern",
@@ -309,7 +310,7 @@ class CurriculumTrainingDataset(GrandStaffFullPage):
         super().__init__(
                 data_path=data_path,
                 split=split,
-                teacher_forcing_perc=teacher_forcing_perc,
+                teacher_forcing_error_rate=teacher_forcing_error_rate,
                 reduce_ratio=reduce_ratio,
                 augment=augment,
                 krn_format=krn_format,
@@ -389,7 +390,7 @@ class GrandStaffFullPageCurriculumLearning(CurriculumTrainingDataset):
             data_path: str,
             synthetic_sources: str = "antoniorv6/grandstaff-ekern",
             split: str = "train",
-            teacher_forcing_perc: float = 0.2,
+            teacher_forcing_error_rate: float = 0.2,
             reduce_ratio: float = .5,
             augment: bool = False,
             krn_format: str = "bekern",
@@ -399,7 +400,7 @@ class GrandStaffFullPageCurriculumLearning(CurriculumTrainingDataset):
                 data_path=data_path,
                 synthetic_sources=synthetic_sources,
                 split=split,
-                teacher_forcing_perc=teacher_forcing_perc,
+                teacher_forcing_error_rate=teacher_forcing_error_rate,
                 reduce_ratio=reduce_ratio,
                 augment=augment,
                 krn_format=krn_format,
