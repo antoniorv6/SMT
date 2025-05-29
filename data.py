@@ -45,7 +45,7 @@ def prepare_data(sample, reduce_ratio=1.0, fixed_size=None):
 
 def load_set(dataset, split="train", reduce_ratio=1.0, fixed_size=None):
     ds = datasets.load_dataset(dataset, split=split, trust_remote_code=False)
-    ds = ds.map(prepare_data, fn_kwargs={"reduce_ratio": reduce_ratio, "fixed_size": fixed_size})
+    ds = ds.map(prepare_data, fn_kwargs={"reduce_ratio": reduce_ratio, "fixed_size": fixed_size}, num_proc=4)
 
     return ds
 
@@ -78,7 +78,8 @@ def load_from_files_list(
             fn_kwargs={
                 "reduce_ratio": reduce_ratio,
                 "krn_format": krn_format
-                })
+                },
+            num_proc=4)
 
     return dataset
 
@@ -140,10 +141,11 @@ class OMRIMG2SEQDataset(Dataset):
         if self.augment:
             x = augment(self.x[index])
         else:
-            x = convert_img_to_tensor(self.x[index])
+            x = convert_img_to_tensor(np.array(self.x[index]))
 
         y = torch.from_numpy(np.asarray([self.w2i[token] for token in self.y[index]]))
         decoder_input = self.apply_teacher_forcing(y)
+
         return x, decoder_input, y
 
     def get_max_hw(self):
@@ -216,7 +218,7 @@ class GrandStaffSingleSystem(OMRIMG2SEQDataset):
         if self.augment:
             x = augment(x)
         else:
-            x = convert_img_to_tensor(x)
+            x = convert_img_to_tensor(np.array(x))
 
         y = torch.from_numpy(np.asarray([self.w2i[token] for token in y]))
         decoder_input = self.apply_teacher_forcing(y)
@@ -283,7 +285,7 @@ class SyntheticOMRDataset(OMRIMG2SEQDataset):
         if self.augment:
             x = augment(x)
         else:
-            x = convert_img_to_tensor(x)
+            x = convert_img_to_tensor(np.array(x))
 
         y = torch.from_numpy(np.asarray([self.w2i[token] for token in y]))
         decoder_input = self.apply_teacher_forcing(y)
@@ -307,6 +309,7 @@ class CurriculumTrainingDataset(GrandStaffFullPage):
             krn_format: str = "bekern",
             *args, **kwargs
             ) -> None:
+        self.generator = VerovioGenerator(sources=synthetic_sources, split=split, krn_format=krn_format)
         super().__init__(
                 data_path=data_path,
                 split=split,
@@ -316,7 +319,6 @@ class CurriculumTrainingDataset(GrandStaffFullPage):
                 krn_format=krn_format,
                 *args, **kwargs
                 )
-        self.generator = VerovioGenerator(sources=synthetic_sources, split=split, krn_format=krn_format)
 
         self.max_synth_prob: float = 0.9
         self.min_synth_prob: float = 0.2
@@ -375,7 +377,7 @@ class CurriculumTrainingDataset(GrandStaffFullPage):
         if self.augment:
            x = augment(x)
         else:
-           x = convert_img_to_tensor(x)
+           x = convert_img_to_tensor(np.array(x))
 
         y = torch.from_numpy(np.asarray([self.w2i[token] for token in y]))
         decoder_input = self.apply_teacher_forcing(y)

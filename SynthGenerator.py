@@ -49,7 +49,10 @@ def parse_kern(krn: str) -> str:
 
 def load_from_files_list(dataset_ref: list, split:str="train") -> list:
     # return [" ".join(parse_kern(content)[4:]) for content in progress.track(load_dataset(dataset_ref, split=split, download_mode=DownloadMode.REUSE_CACHE_IF_EXISTS)["transcription"])]
-    return [parse_kern(content) for content in progress.track(load_dataset(dataset_ref, split=split, download_mode=DownloadMode.REUSE_CACHE_IF_EXISTS)["transcription"])]
+    ds = load_dataset(dataset_ref, split=split)
+    ds.cleanup_cache_files()
+
+    return [parse_kern(content) for content in progress.track(ds["transcription"])]
 
 def rfloat(start, end):
     return round(random.uniform(start, end), 2)
