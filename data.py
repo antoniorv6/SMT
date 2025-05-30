@@ -73,7 +73,7 @@ def load_from_files_list(
         reduce_ratio: float = 0.5
         ):
     dataset = datasets.load_dataset(file_ref, split=split, trust_remote_code=False)
-    dataset.map(
+    dataset = dataset.map(
             prepare_fp_data,
             fn_kwargs={
                 "reduce_ratio": reduce_ratio,

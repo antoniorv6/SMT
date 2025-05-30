@@ -17,42 +17,23 @@ from cairosvg import svg2png
 
 import names
 from wonderwords import RandomSentence
-# from utils import clean_kern, parse_kern
-from utils import clean_kern
-# from utils import parse_kern
+from utils import clean_kern, parse_kern
 
-# def clean_kern(krn, avoid_tokens=['*Xped', '*staff1', '*staff2', '*tremolo', '*ped', '*Xtuplet', '*tuplet', "*Xtremolo", '*cue', '*Xcue', '*rscale:1/2', '*rscale:1', '*kcancel', '*below']):
-    # krn = krn.split('\n')
-    # newkrn = []
-    # # Remove the lines that contain the avoid tokens
-    # for idx, line in enumerate(krn):
-        # if not any([token in line.split('\t') for token in avoid_tokens]):
-            # #If all the tokens of the line are not '*'
-            # if not all([token == '*' for token in line.split('\t')]):
-                # newkrn.append(line.replace("\n", ""))
-                # 
-    # return "\n".join(newkrn)
-# 
-def parse_kern(krn: str) -> str:
-    krn = clean_kern(krn)
-    krn = re.sub(r'(?<=\=)\d+', '', krn)
+def prepare_data(sample, krn_format: str = "standard"):
+    sample["transcription"] = " ".join(parse_kern(sample["transcription"], krn_format=krn_format)[4:])
 
-    krn = krn.replace(" ", " <s> ")
-    krn = krn.replace("\t", " <t> ")
-    krn = krn.replace("\n", " <b> ")
-    krn = krn.replace("·/", "")
-    krn = krn.replace("·\\", "")
-
-    krn = krn.strip().split(" ")[4:]
-    
-    return " ".join(krn)
+    return sample
 
 def load_from_files_list(dataset_ref: list, split:str="train") -> list:
     # return [" ".join(parse_kern(content)[4:]) for content in progress.track(load_dataset(dataset_ref, split=split, download_mode=DownloadMode.REUSE_CACHE_IF_EXISTS)["transcription"])]
     ds = load_dataset(dataset_ref, split=split)
-    ds.cleanup_cache_files()
+    ds = ds.map(
+        prepare_data,
+        fn_kwargs={"krn_format": "standard"},
+        num_proc=4)
+    # ds.cleanup_cache_files()
 
-    return [parse_kern(content) for content in progress.track(ds["transcription"])]
+    return ds["transcription"] # [parse_kern(content) for content in progress.track(ds["transcription"])]
 
 def rfloat(start, end):
     return round(random.uniform(start, end), 2)

@@ -86,7 +86,7 @@ def clean_kern(
 
 def parse_kern(
         krn: str,
-        krn_format: Literal["kern"] | Literal["ekern"] | Literal["bekern"] = "bekern"
+        krn_format: Literal["standard"] | Literal["kern"] | Literal["ekern"] | Literal["bekern"] = "bekern" 
         ) -> list[str]:
     krn = clean_kern(krn)
     krn = re.sub("(?<=\=)\d+", "", krn)
