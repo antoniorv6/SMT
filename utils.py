@@ -79,7 +79,7 @@ def clean_kern(
         krn: str,
         forbidden_tokens: list[str] = ["*staff2", "*staff1", "*Xped", "*tremolo", "*ped", "*Xtuplet", "*tuplet", "*Xtremolo", "*cue", "*Xcue", "*rscale:1/2", "*rscale:1", "*kcancel", "*below"]
         ) -> str:
-    forbidden_pattern = "(" + "|".join([t.replace("*", "\*") for t in forbidden_tokens]) + ")"
+    forbidden_pattern = "(" + "|".join([t.replace("*", "\\*") for t in forbidden_tokens]) + ")"
     krn = re.sub(f".*{forbidden_pattern}.*\n", "", krn) # Remove lines containing any of the forbidden tokens
     krn = re.sub("(^|(?<=\n))\*(\s\*)*(\n|$)", "", krn) # Remove lines that only contain "*" tokens
     return krn.strip()

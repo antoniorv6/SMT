@@ -45,7 +45,7 @@ def prepare_data(sample, reduce_ratio=1.0, fixed_size=None):
 
 def load_set(dataset, split="train", reduce_ratio=1.0, fixed_size=None):
     ds = datasets.load_dataset(dataset, split=split, trust_remote_code=False)
-    ds = ds.map(prepare_data, fn_kwargs={"reduce_ratio": reduce_ratio, "fixed_size": fixed_size}, num_proc=4)
+    ds = ds.map(prepare_data, fn_kwargs={"reduce_ratio": reduce_ratio, "fixed_size": fixed_size}, num_proc=8)
 
     return ds
 
@@ -79,7 +79,7 @@ def load_from_files_list(
                 "reduce_ratio": reduce_ratio,
                 "krn_format": krn_format
                 },
-            num_proc=4)
+            num_proc=8)
 
     return dataset
 

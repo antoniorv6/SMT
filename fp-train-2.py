@@ -29,7 +29,7 @@ def main(config_path, starting_checkpoint):
     model_wrapper.set_stage(datamodule.train_set.curriculum_stage_beginning)
     model_wrapper.set_stage_calculator(datamodule.train_set.get_stage_calculator())
 
-    wandb_logger = WandbLogger(project='SMT-FP', group="GrandStaff", name="SMT-System-level", log_model=False)
+    wandb_logger = WandbLogger(project='SMT-FP', group="GrandStaff", name="SMT-FP-CL", log_model=False)
 
     early_stopping = EarlyStopping(monitor="val_SER", min_delta=0.01, patience=5, mode="min", verbose=True)
 
@@ -44,6 +44,7 @@ def main(config_path, starting_checkpoint):
     trainer = Trainer(max_epochs=10000,
                       check_val_every_n_epoch=5,
                       logger=wandb_logger, callbacks=[checkpointer, stage_checkpointer, early_stopping], precision='16-mixed')
+    datamodule.train_set.set_trainer_data(trainer)
 
     trainer.fit(model_wrapper,datamodule=datamodule)
 
