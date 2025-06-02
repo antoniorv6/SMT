@@ -19,8 +19,18 @@ def main(config_path, starting_checkpoint):
 
     datamodule = SyntheticCLGrandStaffDataset(config=config.data)
 
-    max_height, max_width = 2512, 2512 # datamodule.train_set.get_max_hw()
-    max_len = 4360 # datamodule.train_set.get_max_seqlen()
+    Th, Tw = datamodule.train_set.get_max_hw()
+    Tl = datamodule.train_set.get_max_seqlen()
+
+    vh, vw = datamodule.val_set.get_max_hw()
+    vl = datamodule.val_set.get_max_seqlen()
+
+    th, tw = datamodule.test_set.get_max_hw()
+    tl = datamodule.test_set.get_max_seqlen()
+
+    max_height = max(Th, vh, th)
+    max_width = max(Tw, vw, tw)
+    max_len = max(Tl, vl, tl)
 
     model_wrapper = SMT_Trainer.load_from_checkpoint(starting_checkpoint, maxh=int(max_height), maxw=int(max_width), maxlen=int(max_len),
                                 out_categories=len(datamodule.train_set.w2i), padding_token=datamodule.train_set.w2i["<pad>"],
@@ -38,10 +48,10 @@ def main(config_path, starting_checkpoint):
                                    save_top_k=config.checkpoint.save_top_k, verbose=config.checkpoint.verbose,
                                    enable_version_counter=False)
     stage_checkpointer = ModelCheckpoint(dirpath=config.checkpoint.dirpath, filename="SMT-CL-stage",
-                                   monitor="stage", mode="max",
+                                   monitor="stage_step", mode="max",
                                    save_top_k=datamodule.train_set.num_cl_steps, verbose=True)
 
-    trainer = Trainer(max_epochs=10000,
+    trainer = Trainer(max_epochs=10000, min_steps=300000,
                       check_val_every_n_epoch=5,
                       logger=wandb_logger, callbacks=[checkpointer, stage_checkpointer, early_stopping], precision='16-mixed')
     datamodule.train_set.set_trainer_data(trainer)

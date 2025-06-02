@@ -31,6 +31,8 @@ def prepare_data(sample, reduce_ratio=1.0, fixed_size=None):
         width = int(np.ceil(img.shape[1] * reduce_ratio))
         height = int(np.ceil(max(img.shape[0], 256) * reduce_ratio))
 
+    img = cv2.resize(img, (width, height))
+
     gt = sample['transcription'].strip("\n ")
     gt = re.sub(r'(?<=\=)\d+', '', gt)
     gt = gt.replace(" ", " <s> ")
@@ -57,7 +59,7 @@ def prepare_fp_data(
         ):
     sample["transcription"] = ['<bos>'] + parse_kern(sample["transcription"], krn_format=krn_format)[4:] + ['<eos>'] # Remove **kern, **ekern and **bekern header
 
-    img = img = np.array(sample['image'])
+    img = np.array(sample['image'])
     width = int(np.ceil(img.shape[1] * reduce_ratio))
     height = int(np.ceil(img.shape[0] * reduce_ratio))
     img = cv2.resize(img, (width, height))
@@ -70,7 +72,8 @@ def load_from_files_list(
         file_ref: str,
         split: str = "train",
         krn_format: str = 'bekern',
-        reduce_ratio: float = 0.5
+        reduce_ratio: float = 0.5,
+        map_kwargs: dict[str, any] = {"num_proc": 8}
         ):
     dataset = datasets.load_dataset(file_ref, split=split, trust_remote_code=False)
     dataset = dataset.map(
@@ -79,7 +82,7 @@ def load_from_files_list(
                 "reduce_ratio": reduce_ratio,
                 "krn_format": krn_format
                 },
-            num_proc=8)
+            **map_kwargs)
 
     return dataset
 
@@ -139,7 +142,7 @@ class OMRIMG2SEQDataset(Dataset):
 
     def __getitem__(self, index):
         if self.augment:
-            x = augment(self.x[index])
+            x = augment(np.array(self.x[index]))
         else:
             x = convert_img_to_tensor(np.array(self.x[index]))
 
@@ -149,8 +152,8 @@ class OMRIMG2SEQDataset(Dataset):
         return x, decoder_input, y
 
     def get_max_hw(self):
-        m_width = np.max([img.shape[1] for img in self.x])
-        m_height = np.max([img.shape[0] for img in self.x])
+        m_height = np.max([img.size[1] for img in self.x])
+        m_width = np.max([img.size[0] for img in self.x])
 
         return m_height, m_width
 
@@ -196,13 +199,13 @@ class GrandStaffSingleSystem(OMRIMG2SEQDataset):
         self.data = load_set(data_path, split, reduce_ratio=reduce_ratio)
 
     def get_width_avgs(self):
-        widths = [s["image"].size[1] for s in self.data]
+        widths = [s["image"].size[0] for s in self.data]
 
         return np.average(widths), np.max(widths), np.min(widths)
 
     def get_max_hw(self):
-        m_height = np.max([s["image"].size[0] for s in self.data])
-        m_width = np.max([s["image"].size[1] for s in self.data])
+        m_height = np.max([s["image"].size[1] for s in self.data])
+        m_width = np.max([s["image"].size[0] for s in self.data])
 
         return m_height, m_width
 
@@ -212,13 +215,13 @@ class GrandStaffSingleSystem(OMRIMG2SEQDataset):
     def __getitem__(self, index):
         sample = self.data[index]
 
-        x = sample["image"]
+        x = np.array(sample["image"])
         y = sample["transcription"]
 
         if self.augment:
             x = augment(x)
         else:
-            x = convert_img_to_tensor(np.array(x))
+            x = convert_img_to_tensor(x)
 
         y = torch.from_numpy(np.asarray([self.w2i[token] for token in y]))
         decoder_input = self.apply_teacher_forcing(y)
@@ -253,7 +256,7 @@ class GrandStaffFullPage(GrandStaffSingleSystem):
         self.reduce_ratio: float = reduce_ratio
         self.krn_format: str = krn_format
 
-        self.data = load_from_files_list(data_path, split, krn_format, reduce_ratio=reduce_ratio)
+        self.data = load_from_files_list(data_path, split, krn_format, reduce_ratio=reduce_ratio, map_kwargs={"writer_batch_size": 32})
 
 class SyntheticOMRDataset(OMRIMG2SEQDataset):
     """Synthetic dataset using VerovioGenerator"""
@@ -282,10 +285,12 @@ class SyntheticOMRDataset(OMRIMG2SEQDataset):
     def __getitem__(self, index):
         x, y = self.generator.generate_music_system_image()
 
+        x = np.array(x)
+
         if self.augment:
             x = augment(x)
         else:
-            x = convert_img_to_tensor(np.array(x))
+            x = convert_img_to_tensor(x)
 
         y = torch.from_numpy(np.asarray([self.w2i[token] for token in y]))
         decoder_input = self.apply_teacher_forcing(y)
@@ -374,12 +379,14 @@ class CurriculumTrainingDataset(GrandStaffFullPage):
                     include_title=gen_author_title,
                     reduce_ratio=self.reduce_ratio)
 
+        x = np.array(x)
+
         if self.augment:
            x = augment(x)
         else:
-           x = convert_img_to_tensor(np.array(x))
+           x = convert_img_to_tensor(x)
 
-        y = torch.from_numpy(np.asarray([self.w2i[token] for token in y]))
+        y = torch.from_numpy(np.asarray([self.w2i[token] for token in y if token != '']))
         decoder_input = self.apply_teacher_forcing(y)
 
         wandb.log({'Stage': stage})
@@ -451,17 +458,17 @@ class SyntheticGrandStaffDataset(LightningDataModule):
         self.val_set: SyntheticOMRDataset = SyntheticOMRDataset(data_path=self.data_path, split="val", dataset_length=1000, augment=False, krn_format=self.krn_format)
         self.test_set: SyntheticOMRDataset = SyntheticOMRDataset(data_path=self.data_path, split="test", dataset_length=1000, augment=False, krn_format=self.krn_format)
         w2i, i2w = check_and_retrieveVocabulary([self.train_set.get_gt(), self.val_set.get_gt(), self.test_set.get_gt()], "vocab/", f"{self.vocab_name}")#
-    
+
         self.train_set.set_dictionaries(w2i, i2w)
         self.val_set.set_dictionaries(w2i, i2w)
         self.test_set.set_dictionaries(w2i, i2w)
-        
+
     def train_dataloader(self):
         return torch.utils.data.DataLoader(self.train_set, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=True, collate_fn=batch_preparation_img2seq)
-    
+
     def val_dataloader(self):
         return torch.utils.data.DataLoader(self.val_set, batch_size=self.batch_size, num_workers=self.num_workers, collate_fn=batch_preparation_img2seq)
-    
+
     def test_dataloader(self):
         return torch.utils.data.DataLoader(self.test_set, batch_size=self.batch_size, num_workers=self.num_workers, collate_fn=batch_preparation_img2seq)
 
@@ -481,16 +488,17 @@ class SyntheticCLGrandStaffDataset(LightningDataModule):
         self.val_set = GrandStaffFullPage(data_path=self.data_path, split="val", augment=False, krn_format=self.krn_format, reduce_ratio=config.reduce_ratio)
         self.test_set = GrandStaffFullPage(data_path=self.data_path, split="test", augment=False, krn_format=self.krn_format, reduce_ratio=config.reduce_ratio)
         w2i, i2w = check_and_retrieveVocabulary([self.train_set.get_gt(), self.val_set.get_gt(), self.test_set.get_gt()], "vocab/", f"{self.vocab_name}")#
-    
+
         self.train_set.set_dictionaries(w2i, i2w)
         self.val_set.set_dictionaries(w2i, i2w)
         self.test_set.set_dictionaries(w2i, i2w)
-        
+
     def train_dataloader(self):
-        return torch.utils.data.DataLoader(self.train_set, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=True, collate_fn=batch_preparation_img2seq)
-    
+        # return torch.utils.data.DataLoader(self.train_set, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=True, collate_fn=batch_preparation_img2seq)
+        return torch.utils.data.DataLoader(self.train_set, batch_size=self.batch_size, num_workers=0, shuffle=True, collate_fn=batch_preparation_img2seq)
+
     def val_dataloader(self):
         return torch.utils.data.DataLoader(self.val_set, batch_size=self.batch_size, num_workers=self.num_workers, collate_fn=batch_preparation_img2seq)
-    
+
     def test_dataloader(self):
         return torch.utils.data.DataLoader(self.test_set, batch_size=self.batch_size, num_workers=self.num_workers, collate_fn=batch_preparation_img2seq)
