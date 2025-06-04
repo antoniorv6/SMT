@@ -28,7 +28,9 @@ def prepare_data(sample, reduce_ratio=1.0, fixed_size=None):
     else:
         width = int(np.ceil(img.shape[1] * reduce_ratio))
         height = int(np.ceil(max(img.shape[0], 256) * reduce_ratio))
-
+    
+    img = cv2.resize(img, (width, height))
+    
     gt = sample['transcription'].strip("\n ")
     gt = re.sub(r'(?<=\=)\d+', '', gt)
     gt = gt.replace(" ", " <s> ")
