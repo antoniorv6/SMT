@@ -312,6 +312,7 @@ class CurriculumTrainingDataset(GrandStaffFullPage):
             reduce_ratio: float = 1.0,
             augment: bool = False,
             krn_format: str = "bekern",
+            skip_steps: int = 0,
             *args, **kwargs
             ) -> None:
         self.generator = VerovioGenerator(sources=synthetic_sources, split=split, krn_format=krn_format)
@@ -329,14 +330,17 @@ class CurriculumTrainingDataset(GrandStaffFullPage):
         self.min_synth_prob: float = 0.2
         self.finetune_steps: int = 200000
         self.increase_steps: int = 40000
+        self.skip_cl_steps: int = skip_steps
         self.num_cl_steps: int = 3
         self.max_cl_steps: int = self.increase_steps * self.num_cl_steps
-        self.curriculum_stage_beginning: int = 2
+        self.num_cl_steps -= self.skip_cl_steps
+        self.curriculum_stage_beginning: int = 2 + self.skip_cl_steps
 
     def set_trainer_data(self, trainer):
         self.trainer = trainer
 
     def linear_scheduler_synthetic(self, step):
+        step += self.skip_cl_steps * self.increase_steps
         return self.max_synth_prob + round((step - self.max_cl_steps) * (self.min_synth_prob - self.max_synth_prob) / self.finetune_steps, 4)
 
     def get_stage_calculator(self):
@@ -403,6 +407,7 @@ class GrandStaffFullPageCurriculumLearning(CurriculumTrainingDataset):
             reduce_ratio: float = .5,
             augment: bool = False,
             krn_format: str = "bekern",
+            skip_steps: int = 0,
             *args, **kwargs
             ) -> None:
        super().__init__(
@@ -413,6 +418,7 @@ class GrandStaffFullPageCurriculumLearning(CurriculumTrainingDataset):
                 reduce_ratio=reduce_ratio,
                 augment=augment,
                 krn_format=krn_format,
+                skip_steps=skip_steps,
                 *args, **kwargs
                 )
 
@@ -476,7 +482,7 @@ class SyntheticGrandStaffDataset(LightningDataModule):
 # NOTE: Fine-tune the SMT on page-level data with curriculum learning
 # NOTE: using this dataset
 class SyntheticCLGrandStaffDataset(LightningDataModule):
-    def __init__(self, config:ExperimentConfig, fold=0) -> None:
+    def __init__(self, config:ExperimentConfig, skip_steps: int = 0, fold: int = 0) -> None:
         super().__init__()
         self.data_path = config.data_path
         self.vocab_name = config.vocab_name
@@ -484,7 +490,7 @@ class SyntheticCLGrandStaffDataset(LightningDataModule):
         self.num_workers = config.num_workers
         self.krn_format = config.krn_format
 
-        self.train_set = GrandStaffFullPageCurriculumLearning(data_path=self.data_path, split="train", augment=True, krn_format=self.krn_format, reduce_ratio=config.reduce_ratio)
+        self.train_set = GrandStaffFullPageCurriculumLearning(data_path=self.data_path, split="train", augment=True, krn_format=self.krn_format, reduce_ratio=config.reduce_ratio, skip_steps=skip_steps)
         self.val_set = GrandStaffFullPage(data_path=self.data_path, split="val", augment=False, krn_format=self.krn_format, reduce_ratio=config.reduce_ratio)
         self.test_set = GrandStaffFullPage(data_path=self.data_path, split="test", augment=False, krn_format=self.krn_format, reduce_ratio=config.reduce_ratio)
         w2i, i2w = check_and_retrieveVocabulary([self.train_set.get_gt(), self.val_set.get_gt(), self.test_set.get_gt()], "vocab/", f"{self.vocab_name}")#

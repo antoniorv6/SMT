@@ -13,11 +13,12 @@ from lightning.pytorch.callbacks.early_stopping import EarlyStopping
 torch.set_float32_matmul_precision('high')
 
 def main(config_path, starting_checkpoint):
+    skip_cl_steps: int = 3 # 0
 
     with open(config_path, "r") as f:
         config = experiment_config_from_dict(json.load(f))
 
-    datamodule = SyntheticCLGrandStaffDataset(config=config.data)
+    datamodule = SyntheticCLGrandStaffDataset(config=config.data, skip_steps=skip_cl_steps)
 
     Th, Tw = datamodule.train_set.get_max_hw()
     Tl = datamodule.train_set.get_max_seqlen()
@@ -51,7 +52,8 @@ def main(config_path, starting_checkpoint):
                                    monitor="stage_step", mode="max",
                                    save_top_k=datamodule.train_set.num_cl_steps, verbose=True)
 
-    trainer = Trainer(max_epochs=10000, min_steps=300000,
+    skip_steps: int = skip_cl_steps*40000
+    trainer = Trainer(max_epochs=10000, min_steps=300000-skip_steps,
                       check_val_every_n_epoch=5,
                       logger=wandb_logger, callbacks=[checkpointer, stage_checkpointer, early_stopping], precision='16-mixed')
     datamodule.train_set.set_trainer_data(trainer)
