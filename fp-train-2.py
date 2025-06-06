@@ -40,7 +40,8 @@ def main(config_path, starting_checkpoint):
     model_wrapper.set_stage(datamodule.train_set.curriculum_stage_beginning)
     model_wrapper.set_stage_calculator(datamodule.train_set.get_stage_calculator())
 
-    wandb_logger = WandbLogger(project='SMT-FP', group="GrandStaff", name="SMT-FP-CL", log_model=False)
+    group = config.checkpoint.dirpath
+    wandb_logger = WandbLogger(project='SMT-FP', group=group, name="SMT-FP-CL", log_model=False)
 
     early_stopping = EarlyStopping(monitor="val_SER", min_delta=0.01, patience=5, mode="min", verbose=True)
 

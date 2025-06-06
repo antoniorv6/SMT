@@ -1,0 +1,15 @@
+{
+	"data":{
+		"data_path": "antoniorv6/mozarteum",
+		"batch_size": 1,
+		"vocab_name": "Mozarteum_BeKern",
+		"num_workers": 20,
+		"tokenization_mode": "bekern",
+		"reduce_ratio": 1.0
+	},
+	"checkpoint": {
+		"dirpath": "Mozarteum",
+		"filename": "FP-Mozarteum-full-page",
+		"monitor": "val_SER"
+	}
+}
