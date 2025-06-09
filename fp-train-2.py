@@ -29,9 +29,9 @@ def main(config_path, starting_checkpoint):
     th, tw = datamodule.test_set.get_max_hw()
     tl = datamodule.test_set.get_max_seqlen()
 
-    max_height = max(Th, vh, th)
-    max_width = max(Tw, vw, tw)
-    max_len = max(Tl, vl, tl)
+    max_height = max(Th, vh, th, 2970)
+    max_width = max(Tw, vw, tw, 2100)
+    max_len = max(Tl, vl, tl, 4353)
 
     model_wrapper = SMT_Trainer.load_from_checkpoint(starting_checkpoint, maxh=int(max_height), maxw=int(max_width), maxlen=int(max_len),
                                 out_categories=len(datamodule.train_set.w2i), padding_token=datamodule.train_set.w2i["<pad>"],
@@ -40,7 +40,7 @@ def main(config_path, starting_checkpoint):
     model_wrapper.set_stage(datamodule.train_set.curriculum_stage_beginning)
     model_wrapper.set_stage_calculator(datamodule.train_set.get_stage_calculator())
 
-    group = config.checkpoint.dirpath
+    group = config.checkpoint.dirpath.split("/")[-1]
     wandb_logger = WandbLogger(project='SMT-FP', group=group, name="SMT-FP-CL", log_model=False)
 
     early_stopping = EarlyStopping(monitor="val_SER", min_delta=0.01, patience=5, mode="min", verbose=True)

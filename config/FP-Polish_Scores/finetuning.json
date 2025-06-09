@@ -1,14 +1,14 @@
 {
-	"data":{
+	"data": {
 		"data_path": "antoniorv6/polish-scores",
 		"batch_size": 1,
 		"vocab_name": "Polish_Scores_BeKern",
 		"num_workers": 20,
-		"tokenization_mode": "bekern",
+		"krn_format": "bekern",
 		"reduce_ratio": 0.5
 	},
 	"checkpoint": {
-		"dirpath": "Polish_Scores",
+		"dirpath": "weights/Polish_Scores",
 		"filename": "FP-Polish_Scores-full-page",
 		"monitor": "val_SER"
 	}
