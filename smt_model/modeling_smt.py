@@ -152,8 +152,8 @@ class MultiHeadAttention(nn.Module):
                 float('-inf')
             )
 
-        attn_probs = F.softmax(attn_weights, dim=-1)
-        attn_probs = self.dropout(attn_probs)
+        attn_weights = F.softmax(attn_weights, dim=-1)
+        attn_probs = self.dropout(attn_weights)
         attn_output = attn_probs @ v
 
         return attn_output, attn_weights
