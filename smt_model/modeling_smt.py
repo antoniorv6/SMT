@@ -142,7 +142,7 @@ class MultiHeadAttention(nn.Module):
 
         if attn_mask is not None:
             if attn_mask.dtype == torch.bool:
-                attn_weights.masked_fill_(~attn_mask, float('-inf'))
+                attn_weights.masked_fill_(attn_mask, float('-inf'))
             else:
                 attn_weights += attn_mask
 
@@ -161,7 +161,7 @@ class MultiHeadAttention(nn.Module):
     def forward(self,
                 query: torch.Tensor, key: Optional[torch.Tensor] = None, value:Optional[torch.Tensor] = None,
                 key_padding_mask: Optional[torch.Tensor] = None, attn_mask: Optional[torch.Tensor] = None,
-                need_weights: bool = False) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
+                return_weights: bool = False) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
 
         if key is None and value is None:
             q = self.q_proj(query)
@@ -181,7 +181,7 @@ class MultiHeadAttention(nn.Module):
         k = self._split_heads(k)
         v = self._split_heads(v)
 
-        use_flash_attn = self.has_flash_attn and not need_weights
+        use_flash_attn = self.has_flash_attn and not return_weights
 
         if use_flash_attn:
             attn_output = self.compute_flash_attn(q, k, v, attn_mask=attn_mask)
@@ -192,7 +192,7 @@ class MultiHeadAttention(nn.Module):
         output = self._merge_heads(attn_output)
         output = self.out_proj(output)
 
-        if need_weights:
+        if return_weights:
             return output, attn_weights
 
         return output, None
@@ -228,7 +228,8 @@ class DecoderLayer(nn.Module):
 
         attn_output, self_weights = self.self_attn(
             query=x, key=None, value=None,
-            key_padding_mask=tgt_key_padding_mask, attn_mask=tgt_mask
+            key_padding_mask=tgt_key_padding_mask, attn_mask=tgt_mask,
+            return_weights=return_weights
         )
 
         x = x + self.dropout_layers[0](attn_output)
@@ -238,7 +239,8 @@ class DecoderLayer(nn.Module):
             query=x,
             key=encoder_output_key,
             value=encoder_output_value,
-            key_padding_mask=memory_key_padding_mask
+            key_padding_mask=memory_key_padding_mask,
+            return_weights=return_weights
         )
 
         x = x + self.dropout_layers[1](attn_output)
@@ -364,7 +366,7 @@ class SMTModelForCausalLM(PreTrainedModel):
     def forward_encoder(self, x):
         return self.encoder(pixel_values=x).last_hidden_state
 
-    def forward_decoder(self, encoder_output, last_predictions, get_weights=False):
+    def forward_decoder(self, encoder_output, last_predictions, return_weights=False):
         b, _, _, _ = encoder_output.size()
 
         encoder_output_2D = self.pos2D(encoder_output)
@@ -377,7 +379,7 @@ class SMTModelForCausalLM(PreTrainedModel):
                                                     encoder_output_2D=encoder_features_2D, encoder_output_raw=encoder_features,
                                                     tgt_mask=causal_mask, tgt_key_padding_mask=key_target_mask,
                                                     memory_key_padding_mask=None, #[TODO] This only works with one sample per batch
-                                                    return_weights=get_weights)
+                                                    return_weights=return_weights)
 
         return SMTOutput(
             logits=predictions,
@@ -402,7 +404,7 @@ class SMTModelForCausalLM(PreTrainedModel):
         text_sequence = []
         for i in range(self.maxlen - predicted_sequence.shape[-1]):
             output = self.forward_decoder(encoder_output=encoder_output, last_predictions=predicted_sequence,
-                                          get_weights=return_weights)
+                                          return_weights=return_weights)
             predicted_token = torch.argmax(output.logits[:, -1, :], dim=-1).item()
             predicted_sequence = torch.cat([predicted_sequence, torch.argmax(output.logits[:, -1, :], dim=-1, keepdim=True)], dim=1)
             if convert_to_str:
