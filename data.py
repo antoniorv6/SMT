@@ -59,7 +59,7 @@ def prepare_fp_data(
         ):
     sample["transcription"] = ['<bos>'] + parse_kern(sample["transcription"], krn_format=krn_format)[4:] + ['<eos>'] # Remove **kern, **ekern and **bekern header
 
-    img = np.array(sample['image'])
+    img = np.array(sample['image'].convert("RGB"))
     width = int(np.ceil(img.shape[1] * reduce_ratio))
     height = int(np.ceil(img.shape[0] * reduce_ratio))
     img = cv2.resize(img, (width, height))
@@ -76,6 +76,7 @@ def load_from_files_list(
         map_kwargs: dict[str, any] = {"num_proc": 8}
         ):
     dataset = datasets.load_dataset(file_ref, split=split, trust_remote_code=False)
+    # dataset.cleanup_cache_files()
     dataset = dataset.map(
             prepare_fp_data,
             fn_kwargs={
