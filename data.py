@@ -447,6 +447,27 @@ class GrandStaffDataset(LightningDataModule):
         self.val_set.set_dictionaries(w2i, i2w)
         self.test_set.set_dictionaries(w2i, i2w)
 
+    def get_max_height(self) -> int:
+        Th = self.train_set.get_max_height()
+        vh = self.val_set.get_max_height()
+        th = self.test_set.get_max_height()
+
+        return max(Th, vh, th, 2970)
+
+    def get_max_width(self) -> int:
+        Tw = self.train_set.get_max_width()
+        vw = self.val_set.get_max_width()
+        tw = self.test_set.get_max_width()
+
+        return max(Tw, vw, tw, 2100)
+
+    def get_max_length(self) -> int:
+        Tl = self.train_set.get_max_seqlen()
+        vl = self.val_set.get_max_seqlen()
+        tl = self.test_set.get_max_seqlen()
+
+        return max(Tl, vl, tl, 4353)
+
     def train_dataloader(self):
         return torch.utils.data.DataLoader(self.train_set, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=True, collate_fn=batch_preparation_img2seq)
 
