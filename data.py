@@ -452,21 +452,21 @@ class GrandStaffDataset(LightningDataModule):
         vh = self.val_set.get_max_height()
         th = self.test_set.get_max_height()
 
-        return max(Th, vh, th, 2970)
+        return max(Th, vh, th)
 
     def get_max_width(self) -> int:
         Tw = self.train_set.get_max_width()
         vw = self.val_set.get_max_width()
         tw = self.test_set.get_max_width()
 
-        return max(Tw, vw, tw, 2100)
+        return max(Tw, vw, tw)
 
     def get_max_length(self) -> int:
         Tl = self.train_set.get_max_seqlen()
         vl = self.val_set.get_max_seqlen()
         tl = self.test_set.get_max_seqlen()
 
-        return max(Tl, vl, tl, 4353)
+        return max(Tl, vl, tl)
 
     def train_dataloader(self):
         return torch.utils.data.DataLoader(self.train_set, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=True, collate_fn=batch_preparation_img2seq)
