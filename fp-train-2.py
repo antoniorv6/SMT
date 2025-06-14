@@ -13,7 +13,7 @@ from lightning.pytorch.callbacks.early_stopping import EarlyStopping
 torch.set_float32_matmul_precision('high')
 
 def main(config_path, starting_checkpoint):
-    skip_cl_steps: int = 3 # 0
+    skip_cl_steps: int = 0 # Change this to start from a higher stage
 
     with open(config_path, "r") as f:
         config = experiment_config_from_dict(json.load(f))
