@@ -20,18 +20,9 @@ def main(config_path, starting_checkpoint):
 
     datamodule = SyntheticCLGrandStaffDataset(config=config.data, skip_steps=skip_cl_steps)
 
-    Th, Tw = datamodule.train_set.get_max_hw()
-    Tl = datamodule.train_set.get_max_seqlen()
-
-    vh, vw = datamodule.val_set.get_max_hw()
-    vl = datamodule.val_set.get_max_seqlen()
-
-    th, tw = datamodule.test_set.get_max_hw()
-    tl = datamodule.test_set.get_max_seqlen()
-
-    max_height = max(Th, vh, th, 2970)
-    max_width = max(Tw, vw, tw, 2100)
-    max_len = max(Tl, vl, tl, 4353)
+    max_height = datamodule.get_max_height()
+    max_width = datamodule.get_max_width()
+    max_len = datamodule.get_max_length()
 
     model_wrapper = SMT_Trainer.load_from_checkpoint(starting_checkpoint, maxh=int(max_height), maxw=int(max_width), maxlen=int(max_len),
                                 out_categories=len(datamodule.train_set.w2i), padding_token=datamodule.train_set.w2i["<pad>"],

@@ -204,14 +204,20 @@ class GrandStaffSingleSystem(OMRIMG2SEQDataset):
 
         return np.average(widths), np.max(widths), np.min(widths)
 
+    def get_max_height(self) -> int:
+        return np.max([s["image"].size[1] for s in self.data])
+
+    def get_max_width(self) -> int:
+        return np.max([s["image"].size[0] for s in self.data])
+
+    def get_max_seqlen(self):
+        return np.max([len(s["transcription"]) for s in self.data])
+
     def get_max_hw(self):
         m_height = np.max([s["image"].size[1] for s in self.data])
         m_width = np.max([s["image"].size[0] for s in self.data])
 
         return m_height, m_width
-
-    def get_max_seqlen(self):
-        return np.max([len(s["transcription"]) for s in self.data])
 
     def __getitem__(self, index):
         sample = self.data[index]
@@ -470,6 +476,15 @@ class SyntheticGrandStaffDataset(LightningDataModule):
         self.val_set.set_dictionaries(w2i, i2w)
         self.test_set.set_dictionaries(w2i, i2w)
 
+    def get_max_height(self) -> int:
+        return 2512
+
+    def get_max_width(self) -> int:
+        return 2512
+
+    def get_max_length(self) -> int:
+        return 4360
+
     def train_dataloader(self):
         return torch.utils.data.DataLoader(self.train_set, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=True, collate_fn=batch_preparation_img2seq)
 
@@ -499,6 +514,27 @@ class SyntheticCLGrandStaffDataset(LightningDataModule):
         self.train_set.set_dictionaries(w2i, i2w)
         self.val_set.set_dictionaries(w2i, i2w)
         self.test_set.set_dictionaries(w2i, i2w)
+
+    def get_max_height(self) -> int:
+        Th = self.train_set.get_max_height()
+        vh = self.val_set.get_max_height()
+        th = self.test_set.get_max_height()
+
+        return max(Th, vh, th, 2970)
+
+    def get_max_width(self) -> int:
+        Tw = self.train_set.get_max_width()
+        vw = self.val_set.get_max_width()
+        tw = self.test_set.get_max_width()
+
+        return max(Tw, vw, tw, 2100)
+
+    def get_max_length(self) -> int:
+        Tl = self.train_set.get_max_seqlen()
+        vl = self.val_set.get_max_seqlen()
+        tl = self.test_set.get_max_seqlen()
+
+        return max(Tl, vl, tl, 4353)
 
     def train_dataloader(self):
         # return torch.utils.data.DataLoader(self.train_set, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=True, collate_fn=batch_preparation_img2seq)
