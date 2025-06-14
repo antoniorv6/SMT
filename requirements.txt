@@ -16,3 +16,9 @@ torchvision
 transformers
 visualizer
 datasets
+
+verovio
+wand
+cairosvg
+names
+wonderwords
