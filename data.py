@@ -376,7 +376,7 @@ class CurriculumTrainingDataset(GrandStaffFullPage):
                reduce_ratio=self.reduce_ratio)
         else:
             probability = max(self.linear_scheduler_synthetic(step), self.min_synth_prob)
-            wandb.log({'Synthetic Probability': probability}, commit=False)
+            # wandb.log({'Synthetic Probability': probability}, commit=False)
 
             if random.random() > probability:
                 x = self.data[index]["image"]
@@ -400,7 +400,7 @@ class CurriculumTrainingDataset(GrandStaffFullPage):
         y = torch.from_numpy(np.asarray([self.w2i[token] for token in y if token != '']))
         decoder_input = self.apply_teacher_forcing(y)
 
-        wandb.log({'Stage': stage})
+        # wandb.log({'Stage': stage})
 
         return x, decoder_input, y
 
