@@ -98,16 +98,42 @@ dataset = datasets.load_dataset('antoniorv6/<dataset-name>')
 The dataset has two columns: `image` which contains the original image of the music excerpt for input, and the `transcription`, which contains the corresponding `bekern` notation ground-truth that represents the content of this input. 
 
 # Train
-These experiments run under the Weights & Biases API and the ```JSON``` config. To replicate an experiment, run the following code:
+These experiments run under the Weights & Biases API and the ```JSON``` config. To replicate an experiment, run one of the following codes depending on the pipeline or stage that you need to replicate.
+Please note that the config files are located in the ```config/``` folder, different experiment configs can be found in that directory.
+
+You can make your own config files to train the SMT on your own data! 
+> [!TIP] I highly recommend to use your datasets in the same format provided in the HuggingFace Datasets specification to work with this model. If not, I suggest to make your own data.py file from scratch. Please refer to the Data section to know how to structure your dataset. 
+
+## System-level
+
+To reproduce the system-level experiments without synthetic data, run the following commands in your terminal:
 
 ```sh
 wandb login
 uv run train.py --config_path <config-path>
 ```
-The config files are located in the ```config/``` folder, depending on the executed config file, a specific experiment will be run.
 
-You can make your own config files to train the SMT on your own data! 
-> [!TIP] I highly recommend to use your datasets in the same format provided in the HuggingFace Datasets specification to work with this model. If not, I suggest to make your own data.py file from scratch. Please refer to the Data section to know how to structure your dataset. 
+## Full-page synthetic pretraining (system-level)
+
+To reproduce the first stage of the full-page training setup (pretraining on synthetic system-level data), run the following commands instead:
+
+```sh
+wandb login
+uv run fp-train-1.py --config_path <config-path>
+```
+
+The full-page configs provided in the repository are organized in two files. The ```pretraining.json``` config is expected to be given to this script.
+
+## Full-page curriculum learning (from system-level to full-page)
+
+To reproduce the second stage of the full-page training setup (curriculum learning with synthetic and real data), run the following commands instead:
+
+```sh
+wandb login
+uv run fp-train-2.py --config_path <config-path> --starting_checkpoint <checkpoint-path>
+```
+
+The full-page configs provided in the repository are organized in two files. The ```finetuning.json``` config is expected to be given to this script.
 
 # Benchmarks
 Currently, the available model (SMT NeXt) reports the following metrics:

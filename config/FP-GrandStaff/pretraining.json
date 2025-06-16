@@ -1,0 +1,14 @@
+{
+	"data": {
+		"data_path": "antoniorv6/grandstaff-ekern",
+		"batch_size": 1,
+		"vocab_name": "FP_GrandStaff_BeKern",
+		"num_workers": 20,
+		"krn_format": "bekern",
+		"reduce_ratio": 0.5
+	},
+	"checkpoint": {
+		"filename": "FP-Grandstaff-system-level",
+		"monitor": "val_SER"
+	}
+}
