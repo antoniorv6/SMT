@@ -15,8 +15,8 @@
 </p>
 
 <p align="center">
-  <a href="https://huggingface.co/collections/antoniorv6/sheet-music-transformer-66b9c7cd447411b9c0acdce0"><img align="center" src="https://huggingface.co/datasets/huggingface/badges/resolve/main/model-on-hf-md.svg"></a>
-  <a href="https://huggingface.co/collections/antoniorv6/smt-datasets-66defa88d50145aa1a518822"><img align="center" src="https://huggingface.co/datasets/huggingface/badges/resolve/main/dataset-on-hf-md.svg"></a>
+  <a href="https://huggingface.co/collections/PRAIG/sheet-music-transformer-6853c4ca1bd7980a91677dfd"><img align="center" src="https://huggingface.co/datasets/huggingface/badges/resolve/main/model-on-hf-md.svg"></a>
+  <a href="https://huggingface.co/collections/PRAIG/pianoform-6853c9ef28f3ff9bf33bab97"><img align="center" src="https://huggingface.co/datasets/huggingface/badges/resolve/main/dataset-on-hf-md.svg"></a>
 </p>
 
 <p align='center'>
