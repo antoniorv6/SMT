@@ -3,10 +3,9 @@
   <a href='https://www.litislab.fr/'><img src='graphics/Litis_Logo.png' alt='LITIS-logo' width='100'></a>
 </p>
 
-<h1 align='center'>Sheet Music Transformer: End-To-End Optical Music Recognition Beyond Monophonic Transcription</h1>
-<p align = "center">
-	<a href="https://link.springer.com/chapter/10.1007/978-3-031-70552-6_2"><img align="center" src="https://huggingface.co/datasets/huggingface/badges/resolve/main/paper-page-md.svg"></a>
-</p>
+<h1 align='center'>Sheet Music Transformer</h1>
+<h3> Official repository for the papers: <a href="https://link.springer.com/chapter/10.1007/978-3-031-70552-6_2"><i>Sheet Music Transformer: End-to-End Full-Page Optical Music Recognition for Pianoform Sheet Music</i></a> and <a href="https://arxiv.org/abs/2405.12105"><i>End-to-End Full-Page Optical Music Recognition for Pianoform Sheet Music</a></i>
+
 <p align='center'>
   <img src='https://img.shields.io/badge/python-3.9.0-orange' alt='Python'>
   <img src='https://img.shields.io/badge/PyTorch-%23EE4C2C.svg?style=flat&logo=PyTorch&logoColor=white' alt='PyTorch'>
@@ -161,6 +160,15 @@ Currently, the available model (SMT NeXt) reports the following metrics:
 	address="Cham",
 	pages="20--37",
 	isbn="978-3-031-70552-6"
+}
+```
+
+```bibtex
+@article{rios2024end,
+  title={End-to-End Full-Page Optical Music Recognition for Pianoform Sheet Music},
+  author={R{\'\i}os-Vila, Antonio and Calvo-Zaragoza, Jorge and Rizo, David and Paquet, Thierry},
+  journal={arXiv preprint arXiv:2405.12105},
+  year={2024}
 }
 ```
 
