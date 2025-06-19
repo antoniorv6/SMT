@@ -101,7 +101,8 @@ These experiments run under the Weights & Biases API and the ```JSON``` config. 
 Please note that the config files are located in the ```config/``` folder, different experiment configs can be found in that directory.
 
 You can make your own config files to train the SMT on your own data! 
-> [!TIP] I highly recommend to use your datasets in the same format provided in the HuggingFace Datasets specification to work with this model. If not, I suggest to make your own data.py file from scratch. Please refer to the Data section to know how to structure your dataset. 
+> [!TIP]
+> We highly recommend to use your datasets in the same format provided in the HuggingFace Datasets specification to work with this model. If not, I suggest to make your own data.py file from scratch. Please refer to the Data section to know how to structure your dataset. 
 
 ## System-level
 
