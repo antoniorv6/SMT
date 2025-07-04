@@ -5,16 +5,13 @@ import cv2
 import torch
 import numpy as np
 import cv2
-import wandb
 
 import datasets
 from ExperimentConfig import ExperimentConfig
 from data_augmentation.data_augmentation import augment, convert_img_to_tensor
 from utils import check_and_retrieveVocabulary, parse_kern
-from rich import progress
 from lightning import LightningDataModule
 from torch.utils.data import Dataset
-from torchvision import transforms
 from SynthGenerator import VerovioGenerator
 
 # For single-system datasets
@@ -104,14 +101,14 @@ def batch_preparation_img2seq(data):
 
     max_length_seq = max([len(w) for w in gt])
 
-    decoder_input = torch.zeros(size=[len(dec_in),max_length_seq])
-    y = torch.zeros(size=[len(gt),max_length_seq])
+    decoder_input = torch.zeros(size=[len(dec_in),max_length_seq-1]) # <eos> will be removed
+    y = torch.zeros(size=[len(gt),max_length_seq-1]) # <bos> will be removed
 
     for i, seq in enumerate(dec_in):
-        decoder_input[i, 0:len(seq)-1] = torch.from_numpy(np.asarray([char for char in seq[:-1]]))
+        decoder_input[i] = torch.from_numpy(np.asarray([char for char in seq[:-1]])) # all tokens but <eos>
 
     for i, seq in enumerate(gt):
-        y[i, 0:len(seq)-1] = torch.from_numpy(np.asarray([char for char in seq[1:]]))
+        y[i] = torch.from_numpy(np.asarray([char for char in seq[1:]])) # all tokens but <bos>
 
     return X_train, decoder_input.long(), y.long()
 
