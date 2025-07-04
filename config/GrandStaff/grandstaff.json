@@ -6,5 +6,10 @@
       "img_format": ".jpg",
       "num_workers": 20,
       "reduce_ratio": 1.0
-    }
+    },
+	"checkpoint": {
+		"dirpath": "weights/GrandStaff",
+		"filename": "GrandStaff",
+		"monitor": "val_SER"
+	}
 }

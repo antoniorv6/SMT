@@ -6,5 +6,10 @@
       "img_format": "_distorted.jpg",
       "num_workers": 20,
       "reduce_ratio": 0.85
-    }
+    },
+	"checkpoint": {
+		"dirpath": "weights/CameraGrandStaff",
+		"filename": "CameraGrandStaff",
+		"monitor": "val_SER"
+	}
 }

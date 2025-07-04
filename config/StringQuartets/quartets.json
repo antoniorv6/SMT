@@ -6,5 +6,10 @@
       "img_format": "_distorted.png",
       "num_workers": 20,
       "reduce_ratio": 1.0
-    }
+    },
+	"checkpoint": {
+		"dirpath": "weights/StringQuartets",
+		"filename": "StringQuartets",
+		"monitor": "val_SER"
+	}
 }
