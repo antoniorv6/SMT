@@ -393,7 +393,7 @@ class SMTModelForCausalLM(PreTrainedModel):
         output = self.forward_decoder(x, decoder_input)
 
         if labels is not None:
-            output.loss = self.loss(output.logits.permute(0,2,1).contiguous(), labels[:, :-1])
+            output.loss = self.loss(output.logits.permute(0,2,1).contiguous(), labels)
 
         return output
 

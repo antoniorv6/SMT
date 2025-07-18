@@ -48,7 +48,7 @@ class SMT_Trainer(L.LightningModule):
 
     def training_step(self, batch):
         x, di, y = batch
-        outputs = self.model(encoder_input=x, decoder_input=di[:, :-1], labels=y)
+        outputs = self.model(encoder_input=x, decoder_input=di, labels=y)
         loss = outputs.loss
 
         stage = self.stage_calculator(self.global_step)
@@ -68,7 +68,7 @@ class SMT_Trainer(L.LightningModule):
         dec = dec.replace("<b>", "\n")
         dec = dec.replace("<s>", " ")
 
-        gt = "".join([self.model.i2w[token.item()] for token in y.squeeze(0)[:-1]])
+        gt = "".join([self.model.i2w[token.item()] for token in y.squeeze(0)[:-1]]) # Remove <eos>
         gt = gt.replace("<t>", "\t")
         gt = gt.replace("<b>", "\n")
         gt = gt.replace("<s>", " ")
