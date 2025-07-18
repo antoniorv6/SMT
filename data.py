@@ -44,7 +44,7 @@ def prepare_data(sample, reduce_ratio=1.0, fixed_size=None):
 
 def load_set(dataset, split="train", reduce_ratio=1.0, fixed_size=None):
     ds = datasets.load_dataset(dataset, split=split, trust_remote_code=False)
-    ds = ds.map(prepare_data, fn_kwargs={"reduce_ratio": reduce_ratio, "fixed_size": fixed_size}, num_proc=8)
+    ds = ds.map(prepare_data, fn_kwargs={"reduce_ratio": reduce_ratio, "fixed_size": fixed_size}, num_proc=4, writer_batch_size=500)
 
     return ds
 
@@ -555,8 +555,8 @@ class SyntheticCLGrandStaffDataset(LightningDataModule):
         return max(Tl, vl, tl, 4353)
 
     def train_dataloader(self):
-        # return torch.utils.data.DataLoader(self.train_set, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=True, collate_fn=batch_preparation_img2seq)
-        return torch.utils.data.DataLoader(self.train_set, batch_size=self.batch_size, num_workers=0, shuffle=True, collate_fn=batch_preparation_img2seq)
+        return torch.utils.data.DataLoader(self.train_set, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=True, collate_fn=batch_preparation_img2seq)
+        # return torch.utils.data.DataLoader(self.train_set, batch_size=self.batch_size, num_workers=0, shuffle=True, collate_fn=batch_preparation_img2seq)
 
     def val_dataloader(self):
         return torch.utils.data.DataLoader(self.val_set, batch_size=self.batch_size, num_workers=self.num_workers, collate_fn=batch_preparation_img2seq)
