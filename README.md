@@ -177,6 +177,8 @@ Currently, the available model (SMT NeXt) reports the following metrics:
 
 This work is part of the I+D+i PID2020-118447RA-I00 ([MultiScore](https://sites.google.com/view/multiscore-project)) project, funded by MCIN/AEI/10.13039/501100011033. Computational resources were provided by the Valencian Government and FEDER funding through IDIFEDER/2020/003.
 
+![Alt](https://repobeats.axiom.co/api/embed/f61c8b0db81d42d0df85f1014f07f047b33041a8.svg "Repobeats analytics image")
+
 
 
 ## License
