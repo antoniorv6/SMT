@@ -145,3 +145,7 @@ hf/*
 
 # Ignore generator textures
 paper_textures
+*.jpg
+slurm_logs/
+launch.slurm/
+optimisation/

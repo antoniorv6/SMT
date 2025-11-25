@@ -17,5 +17,10 @@ dependencies = [
     "torchinfo>=1.8.0",
     "torchvision>=0.21.0",
     "transformers>=4.49.0",
+    "verovio>=5.6.0",
     "wandb>=0.19.7",
+    "wand>=0.6.13",
+    "cairosvg>=2.8.2",
+    "names>=0.3.0",
+    "wonderwords>=3.0.1",
 ]
