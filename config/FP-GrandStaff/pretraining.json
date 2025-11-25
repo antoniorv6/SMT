@@ -1,6 +1,6 @@
 {
 	"data": {
-		"data_path": "antoniorv6/grandstaff-ekern",
+		"data_path": "PRAIG/fp-grandstaff",
 		"batch_size": 1,
 		"vocab_name": "FP_GrandStaff_BeKern",
 		"num_workers": 20,
