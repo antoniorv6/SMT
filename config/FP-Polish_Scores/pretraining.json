@@ -1,7 +1,7 @@
 {
 	"data": {
 		"data_path": "antoniorv6/grandstaff-ekern",
-		"batch_size": 1,
+		"batch_size": 2,
 		"vocab_name": "Polish_Scores_BeKern",
 		"num_workers": 20,
 		"krn_format": "bekern",

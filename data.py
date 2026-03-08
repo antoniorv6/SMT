@@ -101,16 +101,18 @@ def batch_preparation_img2seq(data):
 
     max_length_seq = max([len(w) for w in gt])
 
-    decoder_input = torch.zeros(size=[len(dec_in),max_length_seq-1]) # <eos> will be removed
-    y = torch.zeros(size=[len(gt),max_length_seq-1]) # <bos> will be removed
+    decoder_input = torch.zeros(size=[len(dec_in),max_length_seq-1], dtype=torch.long) # <eos> will be removed
+    y = torch.zeros(size=[len(gt),max_length_seq-1], dtype=torch.long) # <bos> will be removed
 
     for i, seq in enumerate(dec_in):
-        decoder_input[i] = torch.from_numpy(np.asarray([char for char in seq[:-1]])) # all tokens but <eos>
+        seq_tensor = torch.as_tensor(seq[:-1])
+        decoder_input[i, :len(seq_tensor)] = seq_tensor # all tokens but <eos>
 
     for i, seq in enumerate(gt):
-        y[i] = torch.from_numpy(np.asarray([char for char in seq[1:]])) # all tokens but <bos>
+        seq_tensor = torch.as_tensor(seq[1:])
+        y[i, :len(seq_tensor)] = seq_tensor # all tokens but <bos>
 
-    return X_train, decoder_input.long(), y.long()
+    return X_train, decoder_input, y
 
 class OMRIMG2SEQDataset(Dataset):
     def __init__(
