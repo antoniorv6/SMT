@@ -37,7 +37,7 @@ def main(config_path):
                                    save_top_k=config.checkpoint.save_top_k, verbose=config.checkpoint.verbose)
 
     trainer = Trainer(max_epochs=10000,
-                      check_val_every_n_epoch=5,
+                      check_val_every_n_epoch=1,
                       logger=wandb_logger, callbacks=[checkpointer, early_stopping], precision='16-mixed')
 
     trainer.fit(model_wrapper,datamodule=datamodule)
