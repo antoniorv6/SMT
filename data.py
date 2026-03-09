@@ -85,7 +85,14 @@ def load_from_files_list(
     return dataset
 
 # For all datasets
-def batch_preparation_img2seq(data):
+class BatchCollator:
+    def __init__(self, pad_token: int = 0):
+        self.pad_token = pad_token
+
+    def __call__(self, data):
+        return batch_preparation_img2seq(data, pad_token=self.pad_token)
+
+def batch_preparation_img2seq(data, pad_token=0):
     images = [sample[0] for sample in data]
     dec_in = [sample[1] for sample in data]
     gt = [sample[2] for sample in data]
@@ -101,8 +108,8 @@ def batch_preparation_img2seq(data):
 
     max_length_seq = max([len(w) for w in gt])
 
-    decoder_input = torch.zeros(size=[len(dec_in),max_length_seq-1], dtype=torch.long) # <eos> will be removed
-    y = torch.zeros(size=[len(gt),max_length_seq-1], dtype=torch.long) # <bos> will be removed
+    decoder_input = torch.full(size=[len(dec_in),max_length_seq-1], fill_value=pad_token, dtype=torch.long) # <eos> will be removed
+    y = torch.full(size=[len(gt),max_length_seq-1], fill_value=pad_token, dtype=torch.long) # <bos> will be removed
 
     for i, seq in enumerate(dec_in):
         seq_tensor = torch.as_tensor(seq[:-1])
@@ -468,13 +475,13 @@ class GrandStaffDataset(LightningDataModule):
         return max(Tl, vl, tl)
 
     def train_dataloader(self):
-        return torch.utils.data.DataLoader(self.train_set, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=True, collate_fn=batch_preparation_img2seq)
+        return torch.utils.data.DataLoader(self.train_set, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=True, collate_fn=BatchCollator(self.train_set.padding_token))
 
     def val_dataloader(self):
-        return torch.utils.data.DataLoader(self.val_set, batch_size=self.batch_size, num_workers=self.num_workers, collate_fn=batch_preparation_img2seq)
+        return torch.utils.data.DataLoader(self.val_set, batch_size=self.batch_size, num_workers=self.num_workers, collate_fn=BatchCollator(self.train_set.padding_token))
 
     def test_dataloader(self):
-        return torch.utils.data.DataLoader(self.test_set, batch_size=self.batch_size, num_workers=self.num_workers, collate_fn=batch_preparation_img2seq)
+        return torch.utils.data.DataLoader(self.test_set, batch_size=self.batch_size, num_workers=self.num_workers, collate_fn=BatchCollator(self.train_set.padding_token))
 
 # Synthetic system-level GrandStaff training
 # NOTE: Pre-train the SMT on system-level data using this dataset
@@ -506,13 +513,13 @@ class SyntheticGrandStaffDataset(LightningDataModule):
         return 4360
 
     def train_dataloader(self):
-        return torch.utils.data.DataLoader(self.train_set, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=True, collate_fn=batch_preparation_img2seq)
+        return torch.utils.data.DataLoader(self.train_set, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=True, collate_fn=BatchCollator(self.train_set.padding_token))
 
     def val_dataloader(self):
-        return torch.utils.data.DataLoader(self.val_set, batch_size=self.batch_size, num_workers=self.num_workers, collate_fn=batch_preparation_img2seq)
+        return torch.utils.data.DataLoader(self.val_set, batch_size=self.batch_size, num_workers=self.num_workers, collate_fn=BatchCollator(self.train_set.padding_token))
 
     def test_dataloader(self):
-        return torch.utils.data.DataLoader(self.test_set, batch_size=self.batch_size, num_workers=self.num_workers, collate_fn=batch_preparation_img2seq)
+        return torch.utils.data.DataLoader(self.test_set, batch_size=self.batch_size, num_workers=self.num_workers, collate_fn=BatchCollator(self.train_set.padding_token))
 
 # Synthetic system-to-full-page GrandStaff curriculum training
 # NOTE: Fine-tune the SMT on page-level data with curriculum learning
@@ -557,11 +564,11 @@ class SyntheticCLGrandStaffDataset(LightningDataModule):
         return max(Tl, vl, tl, 4353)
 
     def train_dataloader(self):
-        return torch.utils.data.DataLoader(self.train_set, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=True, collate_fn=batch_preparation_img2seq)
-        # return torch.utils.data.DataLoader(self.train_set, batch_size=self.batch_size, num_workers=0, shuffle=True, collate_fn=batch_preparation_img2seq)
+        return torch.utils.data.DataLoader(self.train_set, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=True, collate_fn=BatchCollator(self.train_set.padding_token))
+        # return torch.utils.data.DataLoader(self.train_set, batch_size=self.batch_size, num_workers=0, shuffle=True, collate_fn=BatchCollator(self.train_set.padding_token))
 
     def val_dataloader(self):
-        return torch.utils.data.DataLoader(self.val_set, batch_size=self.batch_size, num_workers=self.num_workers, collate_fn=batch_preparation_img2seq)
+        return torch.utils.data.DataLoader(self.val_set, batch_size=self.batch_size, num_workers=self.num_workers, collate_fn=BatchCollator(self.train_set.padding_token))
 
     def test_dataloader(self):
-        return torch.utils.data.DataLoader(self.test_set, batch_size=self.batch_size, num_workers=self.num_workers, collate_fn=batch_preparation_img2seq)
+        return torch.utils.data.DataLoader(self.test_set, batch_size=self.batch_size, num_workers=self.num_workers, collate_fn=BatchCollator(self.train_set.padding_token))
