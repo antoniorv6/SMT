@@ -23,7 +23,7 @@ ckpt_path = "/nlp/projekty/music_ocr/SMT-deep/weights/Polish_Scores/FP-Polish_Sc
 print(f"Načítám váhy ze souboru: {ckpt_path}")
 
 # 1. Načteme obálku z PyTorch Lightning
-lightning_wrapper = SMT_Trainer.load_from_checkpoint(ckpt_path)
+lightning_wrapper = SMT_Trainer.load_from_checkpoint(ckpt_path, map_location=device)
 model = lightning_wrapper.model.to(device)
 
 # ==========================================
