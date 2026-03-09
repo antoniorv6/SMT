@@ -32,7 +32,8 @@ print(f"📏 Tenzor obrázku připraven, velikost: {tensor_img.shape}")
 
 try:
     predictions, _ = model.predict(tensor_img, convert_to_str=True)
-    vystup = "".join(predictions).replace('<b>', '\n').replace('<s>', ' ').replace('<t>', '\t')
+    # the predictions are now batched lists of tokens, so we extract index 0
+    vystup = "".join(predictions[0]).replace('<b>', '\n').replace('<s>', ' ').replace('<t>', '\t')
 
     print("\n" + "="*40)
     print("VÝSLEDEK (Kern Notace):")
