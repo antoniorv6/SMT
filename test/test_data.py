@@ -1,5 +1,10 @@
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import torch
 import numpy as np
+from data import batch_preparation_img2seq, BatchCollator
 
 def test_batch_padding():
     # Simulate batch data
@@ -8,7 +13,9 @@ def test_batch_padding():
     # decoder_input: tensor of seq len (includes <bos> and <eos>)
     # y: same as decoder_input
     
-    pad_token = 0
+    pad_token = 99
+    collator = BatchCollator(pad_token=pad_token)
+    
     dec_in_1 = torch.tensor([1, 2, 3, 4, 5]) # e.g. <bos>, a, b, c, <eos>
     dec_in_2 = torch.tensor([1, 2, 5])       # e.g. <bos>, a, <eos>
     
@@ -23,31 +30,7 @@ def test_batch_padding():
         (img_2, dec_in_2, gt_2)
     ]
     
-    images = [sample[0] for sample in data]
-    dec_in = [sample[1] for sample in data]
-    gt = [sample[2] for sample in data]
-
-    max_image_width = max(128, max([img.shape[2] for img in images]))
-    max_image_height = max(256, max([img.shape[1] for img in images]))
-
-    X_train = torch.ones(size=[len(images), 1, max_image_height, max_image_width], dtype=torch.float32)
-
-    for i, img in enumerate(images):
-        _, h, w = img.size()
-        X_train[i, :, :h, :w] = img
-
-    max_length_seq = max([len(w) for w in gt])
-
-    decoder_input = torch.full(size=[len(dec_in),max_length_seq-1], fill_value=pad_token, dtype=torch.long)
-    y = torch.full(size=[len(gt),max_length_seq-1], fill_value=pad_token, dtype=torch.long)
-
-    for i, seq in enumerate(dec_in):
-        seq_tensor = torch.as_tensor(seq[:-1])
-        decoder_input[i, :len(seq_tensor)] = seq_tensor # all tokens but <eos>
-
-    for i, seq in enumerate(gt):
-        seq_tensor = torch.as_tensor(seq[1:])
-        y[i, :len(seq_tensor)] = seq_tensor # all tokens but <bos>
+    X_train, decoder_input, y = collator(data)
 
     print("Decoder input:")
     print(decoder_input)
@@ -57,9 +40,14 @@ def test_batch_padding():
     assert decoder_input.shape == (2, 4)
     assert y.shape == (2, 4)
     
-    # sequence 2 should be padded with 0 (pad_token)
-    assert decoder_input[1, 2].item() == 0
-    assert y[1, 2].item() == 0
+    # sequence 2 should be padded with 99 (pad_token)
+    assert decoder_input[1, 2].item() == 99
+    assert y[1, 2].item() == 99
+    
+    # double check the direct function handles it too
+    _, decoder_input2, y2 = batch_preparation_img2seq(data, pad_token=77)
+    assert decoder_input2[1, 2].item() == 77
+    assert y2[1, 2].item() == 77
 
 def test_batch_validation_loop():
     # Simulated validation_step loop for a batch size of 2
