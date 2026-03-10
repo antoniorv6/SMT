@@ -19,11 +19,11 @@ if image is None:
 device = "cuda" if torch.cuda.is_available() else "cpu"
 print(f"🚀 Používám zařízení: {device}")
 
-ckpt_path = "/nlp/projekty/music_ocr/smt-omelka/src/SMT/weights/Polish_Scores/FP-Polish_Scores-system-level.ckpt" 
+ckpt_path = "/nlp/projekty/music_ocr/SMT-deep/weights/Polish_Scores/FP-Polish_Scores-system-level.ckpt" 
 print(f"Načítám váhy ze souboru: {ckpt_path}")
 
 # 1. Načteme obálku z PyTorch Lightning
-lightning_wrapper = SMT_Trainer.load_from_checkpoint(ckpt_path)
+lightning_wrapper = SMT_Trainer.load_from_checkpoint(ckpt_path, map_location=device)
 model = lightning_wrapper.model.to(device)
 
 # ==========================================
@@ -54,7 +54,8 @@ try:
     # Podle smt_trainer.py autor volá čistě 'predict(input=...)' 
     predictions, _ = model.predict(input=tensor_img)
     
-    vystup = "".join(predictions).replace('<b>', '\n').replace('<s>', ' ').replace('<t>', '\t')
+    # We unwrap the first item from the batch
+    vystup = "".join(predictions[0]).replace('<b>', '\n').replace('<s>', ' ').replace('<t>', '\t')
 
     print("\n" + "="*40)
     print("VÝSLEDEK (Kern Notace):")

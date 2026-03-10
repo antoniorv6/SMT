@@ -61,14 +61,12 @@ class SMT_Trainer(L.LightningModule):
 
     def validation_step(self, val_batch):
         x, _, y = val_batch
-        batch_size = x.size(0)
         
-        for i in range(batch_size):
-            x_i = x[i].unsqueeze(0)
+        predicted_sequences, _ = self.model.predict(input=x)
+        
+        for i, predicted_sequence in enumerate(predicted_sequences):
             y_i = y[i]
             
-            predicted_sequence, _ = self.model.predict(input=x_i)
-    
             dec = "".join(predicted_sequence)
             dec = dec.replace("<t>", "\t")
             dec = dec.replace("<b>", "\n")
@@ -94,11 +92,12 @@ class SMT_Trainer(L.LightningModule):
     def on_validation_epoch_end(self, metric_name="val") -> None:
         cer, ser, ler = compute_poliphony_metrics(self.preds, self.grtrs)
 
-        random_index = random.randint(0, len(self.preds)-1)
-        predtoshow = self.preds[random_index]
-        gttoshow = self.grtrs[random_index]
-        print(f"[Prediction] - {predtoshow}")
-        print(f"[GT] - {gttoshow}")
+        if len(self.preds) > 0:
+            random_index = random.randint(0, len(self.preds)-1)
+            predtoshow = self.preds[random_index]
+            gttoshow = self.grtrs[random_index]
+            print(f"[Prediction] - {predtoshow}")
+            print(f"[GT] - {gttoshow}")
 
         self.log(f'{metric_name}_CER', cer, on_epoch=True, prog_bar=True)
         self.log(f'{metric_name}_SER', ser, on_epoch=True, prog_bar=True)

@@ -62,7 +62,8 @@ input_tensor = input_tensor.unsqueeze(0).to(device)
 with torch.no_grad():
     predictions, _ = model.predict(input_tensor, convert_to_str=True)
 
-output = "".join(predictions).replace('<b>', '\n').replace('<s>', ' ').replace('<t>', '\t')
+# Unpack batch outputs for index 0
+output = "".join(predictions[0]).replace('<b>', '\n').replace('<s>', ' ').replace('<t>', '\t')
 print("\n--- Model Output ---")
 print(output)
 
