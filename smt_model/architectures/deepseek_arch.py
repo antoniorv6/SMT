@@ -57,37 +57,28 @@ class DeepSeekOCR2Wrapper(PreTrainedModel):
         x = self.gray_to_rgb(x)
         x = x.to(torch.bfloat16)
 
-        # In DeepSeek-OCR-2, this is processed in patches/crops. 
-        # SMT does global feature extraction typically on the whole image.
-        # We'll pass the whole image as global_features
+        # Store original dimensions for output spatial reshape
+        orig_h, orig_w = x.shape[2], x.shape[3]
+
+        # SAM expects 1024×1024 input — resize to match its positional embeddings
+        x = torch.nn.functional.interpolate(x, size=(1024, 1024), mode='bilinear', align_corners=False)
+
         with torch.amp.autocast('cuda', dtype=torch.bfloat16):
             global_features_1 = self.sam_model(x)
             global_features_2 = self.qwen2_model(global_features_1) 
             global_features = self.projector(global_features_2)
             
             # global_features shape: [B, HW, n_embed]
-            # Since SMT expects 2D pos encoding in its original decoder, we need to return
-            # features that can be shaped back to (B, n_embed, H, W) or we modify how it handles it.
+            # Since we always feed 1024x1024 to SAM, the spatial output is deterministic.
+            # SMT requires encoder_output as [B, C, H, W] for pos2D
             B, HW, n_embed = global_features.shape
             
-            # Estimate H and W from HW (assuming square or aspect ratio of x)
-            # SMT requires encoder_output as [B, C, H, W] for pos2D
-            orig_h, orig_w = x.shape[2], x.shape[3]
-            # SAM uses patch_size 16. Then Neck + Conv2 + Conv3 downsamples by 2*2=4.
-            # Total downsample = 16 * 2 * 2 = 64.
-            h_out = orig_h // 64
-            w_out = orig_w // 64
-            
-            # Ensure hw matches h_out * w_out. Pad or truncate if necessary, or just rely on dynamic reshape.
-            # To be robust:
-            h_feat = int(torch.sqrt(torch.tensor(HW * (orig_h / orig_w))))
+            # SAM 1024 -> patches 64x64 -> neck 64x64 -> conv2 32x32 -> conv3 16x16
+            # qwen2 outputs 256 tokens (16x16) as query, so HW = 256
+            h_feat = int(HW ** 0.5)
             w_feat = HW // h_feat
             
-            try:
-                global_features = global_features.view(B, h_feat, w_feat, n_embed).permute(0, 3, 1, 2)
-            except Exception:
-                # If cannot reshape exactly, return as 1D sequence (B, n_embed, 1, HW)
-                global_features = global_features.permute(0, 2, 1).unsqueeze(2)
+            global_features = global_features.view(B, h_feat, w_feat, n_embed).permute(0, 3, 1, 2)
 
         return global_features.float()
 
