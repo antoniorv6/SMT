@@ -1,5 +1,5 @@
 from .configuration_smt import SMTConfig
-from .modeling_smt import SMTModelForCausalLM
+from .architectures.builder import build_model
 
 __all__ = [
     "SMTConfig",

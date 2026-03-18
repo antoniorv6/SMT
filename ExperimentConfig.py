@@ -105,6 +105,7 @@ class Checkpoint:
 class ExperimentConfig:
     data: Data
     checkpoint: Checkpoint
+    arch_type: str = "smt"
 
     @staticmethod
     def from_dict(obj: Any) -> 'ExperimentConfig':
@@ -112,13 +113,15 @@ class ExperimentConfig:
 
         data = Data.from_dict(obj.get("data"))
         checkpoint = Checkpoint.from_dict(obj.get("checkpoint"))
+        arch_type = from_str(obj.get("arch_type")) if "arch_type" in obj else "smt"
 
-        return ExperimentConfig(data, checkpoint)
+        return ExperimentConfig(data, checkpoint, arch_type)
 
     def to_dict(self) -> dict:
         return {
                 "data": to_class(Data, self.data),
-                "checkpoint": to_class(Checkpoint, self.checkpoint)
+                "checkpoint": to_class(Checkpoint, self.checkpoint),
+                "arch_type": from_str(self.arch_type)
                 }
 
 

@@ -10,17 +10,17 @@ import lightning.pytorch as L
 from torchinfo import summary
 from eval_functions import compute_poliphony_metrics
 from smt_model import SMTConfig
-from smt_model import SMTModelForCausalLM
+from smt_model import build_model
 
 class SMT_Trainer(L.LightningModule):
-    def __init__(self, maxh, maxw, maxlen, out_categories, padding_token, in_channels, w2i, i2w, d_model=256, dim_ff=256, num_dec_layers=8):
+    def __init__(self, maxh, maxw, maxlen, out_categories, padding_token, in_channels, w2i, i2w, d_model=256, dim_ff=256, num_dec_layers=8, arch_type="smt"):
         super().__init__()
         self.config = SMTConfig(maxh=maxh, maxw=maxw, maxlen=maxlen, out_categories=out_categories,
                            padding_token=padding_token, in_channels=in_channels,
                            w2i=w2i, i2w=i2w,
                            d_model=d_model, dim_ff=dim_ff, attn_heads=4, num_dec_layers=num_dec_layers,
                            use_flash_attn=True)
-        self.model = SMTModelForCausalLM(self.config)
+        self.model = build_model(self.config, arch_type=arch_type)
         self.padding_token = padding_token
 
         self.preds = []
