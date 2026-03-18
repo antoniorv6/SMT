@@ -23,12 +23,12 @@ class DeepSeekOCR2Wrapper(PreTrainedModel):
         self.config = config
         
         # DeepSeek-OCR-2 Vision Encoder components
-        self.sam_model = build_sam_vit_b().to(torch.bfloat16)
-        self.qwen2_model = build_qwen2_decoder_as_encoder().to(torch.bfloat16)
+        self.sam_model = build_sam_vit_b()
+        self.qwen2_model = build_qwen2_decoder_as_encoder()
         
         n_embed = config.d_model  # Project to SMT's expected dim or keep it 1280
         # Usually it's 1280 for deepseek, but we can project to d_model for SMT's vocabulary projection
-        self.projector = MlpProjector(Dict(projector_type="linear", input_dim=896, n_embed=n_embed)).to(torch.bfloat16)
+        self.projector = MlpProjector(Dict(projector_type="linear", input_dim=896, n_embed=n_embed))
 
         self.view_separator = nn.Parameter(torch.randn(n_embed) * (1 / (n_embed**0.5)))
         
@@ -55,32 +55,28 @@ class DeepSeekOCR2Wrapper(PreTrainedModel):
     def forward_encoder(self, x):
         # x is (B, C, H, W)
         x = self.gray_to_rgb(x)
-        x = x.to(torch.bfloat16)
-
-        # Store original dimensions for output spatial reshape
-        orig_h, orig_w = x.shape[2], x.shape[3]
 
         # SAM expects 1024×1024 input — resize to match its positional embeddings
         x = torch.nn.functional.interpolate(x, size=(1024, 1024), mode='bilinear', align_corners=False)
 
-        with torch.amp.autocast('cuda', dtype=torch.bfloat16):
-            global_features_1 = self.sam_model(x)
-            global_features_2 = self.qwen2_model(global_features_1) 
-            global_features = self.projector(global_features_2)
-            
-            # global_features shape: [B, HW, n_embed]
-            # Since we always feed 1024x1024 to SAM, the spatial output is deterministic.
-            # SMT requires encoder_output as [B, C, H, W] for pos2D
-            B, HW, n_embed = global_features.shape
-            
-            # SAM 1024 -> patches 64x64 -> neck 64x64 -> conv2 32x32 -> conv3 16x16
-            # qwen2 outputs 256 tokens (16x16) as query, so HW = 256
-            h_feat = int(HW ** 0.5)
-            w_feat = HW // h_feat
-            
-            global_features = global_features.view(B, h_feat, w_feat, n_embed).permute(0, 3, 1, 2)
+        # Let Lightning's AMP handle precision (float16) — no manual bfloat16 casting
+        global_features_1 = self.sam_model(x)
+        global_features_2 = self.qwen2_model(global_features_1) 
+        global_features = self.projector(global_features_2)
+        
+        # global_features shape: [B, HW, n_embed]
+        # Since we always feed 1024x1024 to SAM, the spatial output is deterministic.
+        # SMT requires encoder_output as [B, C, H, W] for pos2D
+        B, HW, n_embed = global_features.shape
+        
+        # SAM 1024 -> patches 64x64 -> neck 64x64 -> conv2 32x32 -> conv3 16x16
+        # qwen2 outputs 256 tokens (16x16) as query, so HW = 256
+        h_feat = int(HW ** 0.5)
+        w_feat = HW // h_feat
+        
+        global_features = global_features.view(B, h_feat, w_feat, n_embed).permute(0, 3, 1, 2)
 
-        return global_features.float()
+        return global_features
 
     def forward_decoder(self, encoder_output, last_predictions, return_weights=False):
         # encoder_output is [B, C, H, W]
