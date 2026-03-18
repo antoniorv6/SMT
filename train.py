@@ -28,11 +28,11 @@ def main(config_path):
                                 in_channels=1, w2i=datamodule.train_set.w2i, i2w=datamodule.train_set.i2w,
                                 d_model=256, dim_ff=256, num_dec_layers=8, arch_type=config.arch_type)
 
-    wandb_logger = WandbLogger(project='SMT_Reimplementation', group="GrandStaff", name="SMT_NexT_GrandStaff", log_model=False)
+    wandb_logger = WandbLogger(project='SMT_Reimplementation', group="GrandStaff", name=f"SMT_NexT_GrandStaff-{config.arch_type.upper()}", log_model=False)
 
     early_stopping = EarlyStopping(monitor="val_SER", min_delta=0.01, patience=5, mode="min", verbose=True)
 
-    checkpointer = ModelCheckpoint(dirpath=config.checkpoint.dirpath, filename=config.checkpoint.filename,
+    checkpointer = ModelCheckpoint(dirpath=config.checkpoint.dirpath, filename=f"{config.checkpoint.filename}-{config.arch_type.upper()}",
                                    monitor=config.checkpoint.monitor, mode=config.checkpoint.mode,
                                    save_top_k=config.checkpoint.save_top_k, verbose=config.checkpoint.verbose)
 
