@@ -26,14 +26,15 @@ def main(config_path):
     model_wrapper = SMT_Trainer(maxh=int(max_height), maxw=int(max_width), maxlen=int(max_len),
                                 out_categories=len(datamodule.train_set.w2i), padding_token=datamodule.train_set.w2i["<pad>"],
                                 in_channels=1, w2i=datamodule.train_set.w2i, i2w=datamodule.train_set.i2w,
-                                d_model=256, dim_ff=256, num_dec_layers=8)
+                                d_model=256, dim_ff=256, num_dec_layers=8, arch_type=config.arch_type)
 
     group = config.checkpoint.dirpath.split("/")[-1]
-    wandb_logger = WandbLogger(project='SMT-FP', group=group, name="SMT-System-level", log_model=False)
+    name_suffix = f"-{config.arch_type.upper()}" if hasattr(config, "arch_type") else ""
+    wandb_logger = WandbLogger(project='SMT-FP', group=group, name=f"SMT-System-level{name_suffix}", log_model=False)
 
     early_stopping = EarlyStopping(monitor="val_SER", min_delta=0.01, patience=5, mode="min", verbose=True)
 
-    checkpointer = ModelCheckpoint(dirpath=config.checkpoint.dirpath, filename=config.checkpoint.filename,
+    checkpointer = ModelCheckpoint(dirpath=config.checkpoint.dirpath, filename=f"{config.checkpoint.filename}{name_suffix}",
                                    monitor=config.checkpoint.monitor, mode=config.checkpoint.mode,
                                    save_top_k=config.checkpoint.save_top_k, verbose=config.checkpoint.verbose)
 
