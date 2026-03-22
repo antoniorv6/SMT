@@ -35,7 +35,7 @@ class SMT_Trainer(L.LightningModule):
 
 
     def configure_optimizers(self):
-        return torch.optim.Adam(self.model.parameters(), lr=1e-4, amsgrad=False)
+        return torch.optim.Adam(self.model.parameters(), lr=5e-5, amsgrad=False)
 
     def set_stage(self, stage):
         self.stage = stage
