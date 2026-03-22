@@ -13,7 +13,7 @@ class Dict(dict):
             raise AttributeError(name)
     def __setattr__(self, name, value):
         self[name] = value
-from smt_model.architectures.smt_arch import SMTOutput
+from smt_model.architectures.smt_arch import SMTOutput, PositionalEncoding2D
 
 class DeepSeekOCR2Wrapper(PreTrainedModel):
     config_class = SMTConfig
@@ -42,6 +42,10 @@ class DeepSeekOCR2Wrapper(PreTrainedModel):
         self.decoder = Decoder(num_dec_layers=config.num_dec_layers,
                                d_model=n_embed, dim_ff=config.dim_ff, n_heads=config.num_attn_heads,
                                max_seq_length=config.maxlen, out_categories=config.out_categories)
+        
+        # SMT decoder expects spatial features with 2D pos encoding.
+        # DeepSeek output is 16x16.
+        self.pos2D = PositionalEncoding2D(dim=n_embed, h_max=16, w_max=16)
         self.loss = nn.CrossEntropyLoss(ignore_index=config.padding_token)
 
         self.w2i = config.w2i
@@ -85,9 +89,12 @@ class DeepSeekOCR2Wrapper(PreTrainedModel):
         # Let's bypass Pos2D if shape is weird, or just use 1D sequence.
         
         b = encoder_output.size(0)
+        # Apply 2D positional encoding to the spatial features
+        encoder_output_2D = self.pos2D(encoder_output)
+        
         # Flatten features
         encoder_features = torch.flatten(encoder_output, start_dim=2, end_dim=3).permute(0, 2, 1) # [B, HW, C]
-        encoder_features_2D = encoder_features # Bypass 2D Pos encoding if incompatible
+        encoder_features_2D = torch.flatten(encoder_output_2D, start_dim=2, end_dim=3).permute(0, 2, 1) # [B, HW, C]
         
         key_target_mask = self._generate_token_mask([lp.shape[0] for lp in last_predictions], last_predictions.size(), device=last_predictions.device)
         causal_mask = self._generate_causal_mask(last_predictions.size(1), last_predictions.device)

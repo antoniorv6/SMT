@@ -1,5 +1,5 @@
 {
-	"arch_type": "deepseek",
+	"arch_type": "smt",
 	"data": {
 		"data_path": "antoniorv6/grandstaff-ekern",
 		"batch_size": 8,
