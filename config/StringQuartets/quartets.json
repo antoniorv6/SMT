@@ -1,15 +1,15 @@
 {
-    "data":{
-      "data_path": "Data/Quartets/partitions_quartets/",
-      "batch_size": 1,
-      "vocab_name": "Quartets",
-      "img_format": "_distorted.png",
-      "num_workers": 20,
-      "reduce_ratio": 1.0
-    },
-	"checkpoint": {
-		"dirpath": "weights/StringQuartets",
-		"filename": "StringQuartets",
-		"monitor": "val_SER"
-	}
+  "data": {
+    "data_path": "Data/Quartets/partitions_quartets/",
+    "batch_size": 1,
+    "vocab_name": "Quartets",
+    "img_format": "_distorted.png",
+    "num_workers": 20,
+    "reduce_ratio": 1.0
+  },
+  "checkpoint": {
+    "dirpath": "/var/tmp/xomelka1/.cache/weights/StringQuartets",
+    "filename": "StringQuartets",
+    "monitor": "val_SER"
+  }
 }

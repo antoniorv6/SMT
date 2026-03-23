@@ -1,15 +1,15 @@
 {
-    "data":{
-      "data_path": "antoniorv6/grandstaff",
-      "batch_size": 1,
-      "vocab_name": "GrandStaff",
-      "img_format": ".jpg",
-      "num_workers": 20,
-      "reduce_ratio": 1.0
-    },
-	"checkpoint": {
-		"dirpath": "weights/GrandStaff",
-		"filename": "GrandStaff",
-		"monitor": "val_SER"
-	}
+  "data": {
+    "data_path": "antoniorv6/grandstaff",
+    "batch_size": 1,
+    "vocab_name": "GrandStaff",
+    "img_format": ".jpg",
+    "num_workers": 20,
+    "reduce_ratio": 1.0
+  },
+  "checkpoint": {
+    "dirpath": "/var/tmp/xomelka1/.cache/weights/GrandStaff",
+    "filename": "GrandStaff",
+    "monitor": "val_SER"
+  }
 }
