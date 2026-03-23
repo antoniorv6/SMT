@@ -71,7 +71,7 @@ class VerovioGenerator():
     def __init__(self, sources: list, split="train", krn_format='bekern'):
         self.beat_db = self.load_beats(sources, split=split)
         verovio.enableLog(verovio.LOG_OFF)
-        self.tk = verovio.toolkit()
+        self.tk = None # Initialize lazily per process
 
         self.krn_format = krn_format
         self.title_generator = RandomSentence()
@@ -125,6 +125,8 @@ class VerovioGenerator():
         return None
 
     def render(self, music_sequence):
+        if self.tk is None:
+            self.tk = verovio.toolkit()
         self.tk.loadData(music_sequence)
         self.tk.setOptions({"pageWidth": 2100, "footer": 'none',
                                 'barLineWidth': rfloat(0.3, 0.8), 'beamMaxSlope': rfloat(10,20),
@@ -144,11 +146,11 @@ class VerovioGenerator():
         return pngfile
 
     def inkify_image(self, sample):
-        image = IMG.from_array(np.array(sample))
-        paint = rfloat(0, 1)
-        image.oil_paint(paint)
+        with IMG.from_array(np.array(sample)) as image:
+            paint = rfloat(0, 1)
+            image.oil_paint(paint)
 
-        return Image.fromarray(np.array(image))
+            return Image.fromarray(np.array(image))
 
     def filter_system_continuation(self, system, cut_end=True):
         if cut_end:
@@ -209,7 +211,7 @@ class VerovioGenerator():
             complete_score = []
             if len(systems_to_compose) > 1:
                 complete_score = systems_to_compose[0][:-5]
-                for system in enumerate(systems_to_compose[1:-1]):
+                for system in systems_to_compose[1:-1]:
                         complete_score += ["<b>"] + self.filter_system_continuation(system)
                 complete_score += ["<b>"] + self.filter_system_continuation(systems_to_compose[-1], cut_end=False)
             else:

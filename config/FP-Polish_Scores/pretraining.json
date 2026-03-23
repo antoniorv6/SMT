@@ -9,8 +9,8 @@
 		"reduce_ratio": 0.5
 	},
 	"checkpoint": {
-		"dirpath": "weights/Polish_Scores",
-		"filename": "FP-Polish_Scores-system-level",
+		"dirpath": "/var/tmp/xomelka1/.cache/weights/Polish_Scores",
+		"filename": "PretrainingEkernSMTOneNight",
 		"monitor": "val_SER"
 	}
 }

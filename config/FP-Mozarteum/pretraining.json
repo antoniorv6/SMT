@@ -8,7 +8,7 @@
 		"reduce_ratio": 0.5
 	},
 	"checkpoint": {
-		"dirpath": "weights/Mozarteum",
+		"dirpath": "/var/tmp/xomelka1/.cache/weights/Mozarteum",
 		"filename": "FP-Mozarteum-system-level",
 		"monitor": "val_SER"
 	}

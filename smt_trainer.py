@@ -57,6 +57,10 @@ class SMT_Trainer(L.LightningModule):
         self.log("stage", stage, on_epoch=True, batch_size=x.size(0), prog_bar=True)
 
         return loss
+    
+    def on_train_epoch_start(self) -> None:
+        if hasattr(self.trainer.datamodule, "train_set") and hasattr(self.trainer.datamodule.train_set, "set_global_step"):
+            self.trainer.datamodule.train_set.set_global_step(self.global_step)
 
 
     def validation_step(self, val_batch):

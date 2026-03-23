@@ -49,7 +49,7 @@ def main(config_path, starting_checkpoint):
     trainer = Trainer(max_epochs=10000, min_steps=300000-skip_steps,
                       check_val_every_n_epoch=5,
                       logger=wandb_logger, callbacks=[checkpointer, stage_checkpointer, early_stopping], precision='16-mixed')
-    datamodule.train_set.set_trainer_data(trainer)
+    # datamodule.train_set.set_trainer_data(trainer) # Removed to avoid multiprocessing issues
 
     trainer.fit(model_wrapper,datamodule=datamodule)
 

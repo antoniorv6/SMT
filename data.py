@@ -348,9 +348,10 @@ class CurriculumTrainingDataset(GrandStaffFullPage):
         self.max_cl_steps: int = self.increase_steps * self.num_cl_steps
         self.num_cl_steps -= self.skip_cl_steps
         self.curriculum_stage_beginning: int = 2 + self.skip_cl_steps
+        self.global_step: int = 0
 
-    def set_trainer_data(self, trainer):
-        self.trainer = trainer
+    def set_global_step(self, step):
+        self.global_step = step
 
     def linear_scheduler_synthetic(self, step):
         step += self.skip_cl_steps * self.increase_steps
@@ -366,7 +367,7 @@ class CurriculumTrainingDataset(GrandStaffFullPage):
         return stage_calculator
 
     def __getitem__(self, index):
-        step = self.trainer.global_step
+        step = self.global_step
         stage = (step // self.increase_steps) + self.curriculum_stage_beginning
 
         gen_author_title = np.random.rand() > 0.5
