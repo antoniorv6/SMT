@@ -8,7 +8,7 @@
       "reduce_ratio": 0.85
     },
 	"checkpoint": {
-		"dirpath": "weights/CameraGrandStaff",
+		"dirpath": "/var/tmp/xomelka1/.cache/weights/CameraGrandStaff",
 		"filename": "CameraGrandStaff",
 		"monitor": "val_SER"
 	}
