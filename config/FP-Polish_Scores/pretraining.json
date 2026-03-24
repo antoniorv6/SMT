@@ -1,5 +1,5 @@
 {
-	"arch_type": "smt",
+	"arch_type": "deepseek",
 	"data": {
 		"data_path": "antoniorv6/grandstaff-ekern",
 		"batch_size": 8,
@@ -10,7 +10,7 @@
 	},
 	"checkpoint": {
 		"dirpath": "/var/tmp/xomelka1/.cache/weights/Polish_Scores",
-		"filename": "PretrainingEkernSMTOneNight",
+		"filename": "TestIfNaNErrors",
 		"monitor": "val_SER"
 	}
 }
