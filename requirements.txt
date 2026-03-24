@@ -17,7 +17,7 @@ transformers
 visualizer
 datasets
 
-verovio
+verovio==5.0.0
 wand
 cairosvg
 names
