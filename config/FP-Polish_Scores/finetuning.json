@@ -4,13 +4,13 @@
 		"data_path": "antoniorv6/polish-scores",
 		"batch_size": 8,
 		"vocab_name": "Polish_Scores_BeKern",
-		"num_workers": 4,
+		"num_workers": 20,
 		"krn_format": "bekern",
 		"reduce_ratio": 0.5
 	},
 	"checkpoint": {
 		"dirpath": "/var/tmp/xomelka1/.cache/weights/Polish_Scores",
-		"filename": "FP-Polish_Scores-full-page",
+		"filename": "FP-Polish_Scores-full-pageFINETUNE",
 		"monitor": "val_SER"
 	}
 }
