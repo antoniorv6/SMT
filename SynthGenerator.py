@@ -4,7 +4,7 @@ import cv2
 
 import verovio
 import random
-from datasets import load_dataset
+from datasets import load_dataset, load_from_disk, DatasetDict
 
 from PIL import Image, ImageOps
 from wand.image import Image as IMG
@@ -51,8 +51,17 @@ def prepare_data(sample, krn_format: str = "standard"):
 
     return sample
 
-def load_from_files_list(dataset_ref: list, split:str="train") -> list:
-    ds = load_dataset(dataset_ref, split=split)
+def load_from_files_list(dataset_ref: str, split:str="train") -> list:
+    # If it is a local path, use load_from_disk
+    if os.path.isdir(dataset_ref):
+        print(f"Loading from LOCAL disk: {dataset_ref}")
+        ds = load_from_disk(dataset_ref)
+        if isinstance(ds, DatasetDict):
+            ds = ds[split]
+    else:
+        print(f"Loading from ONLINE hub: {dataset_ref}")
+        ds = load_dataset(dataset_ref, split=split)
+
     # ds.cleanup_cache_files()
     ds = ds.map(
         prepare_data,
