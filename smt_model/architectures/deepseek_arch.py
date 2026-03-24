@@ -22,33 +22,52 @@ class DeepSeekOCR2Wrapper(PreTrainedModel):
     def __init__(self, config: SMTConfig):
         super().__init__(config)
         self.config = config
+        # Extract authentic DeepSeek components dynamically!
+        from transformers import AutoModel, AutoConfig
         
-        # DeepSeek-OCR-2 Vision Encoder components
-        self.sam_model = build_sam_vit_b()
-        self.qwen2_model = build_qwen2_decoder_as_encoder()
+        # Determine if we should load pretrained weights from HF Hub
+        use_pretrained = getattr(config, 'use_pretrained_weights', True)
         
-        n_embed = config.d_model  # Project to SMT's expected dim or keep it 1280
-        # Usually it's 1280 for deepseek, but we can project to d_model for SMT's vocabulary projection
-        self.projector = MlpProjector(Dict(projector_type="linear", input_dim=896, n_embed=n_embed))
+        try:
+            model_name = 'deepseek-ai/DeepSeek-OCR-2'
+            if use_pretrained:
+                print(f"Loading Authentic DeepSeek-OCR-2 from HF Hub with pretrained weights...")
+                ds_model = AutoModel.from_pretrained(model_name, trust_remote_code=True, _attn_implementation='eager')
+            else:
+                print(f"Loading Authentic DeepSeek-OCR-2 Architecture (Random Weights)...")
+                ds_config = AutoConfig.from_pretrained(model_name, trust_remote_code=True)
+                ds_config._attn_implementation = 'eager'
+                ds_model = AutoModel.from_config(ds_config, trust_remote_code=True)
+                
+            # Unnest the heavily customized DeepSeek components
+            # DeepSeek-OCR-2 actually forces the Vision modules INSIDE the Language Model core natively!
+            self.decoder = ds_model
+            
+            self.vision_model = ds_model.model.sam_model
+            self.qwen2_adapter = ds_model.model.qwen2_model
+            self.aligner = ds_model.model.projector
+            
+            self.view_separator = ds_model.model.view_seperator
+            
+            # Strip the vision branches from the parent decoder to strictly decouple LM and Vision phases for SMT compatibility.
+            del ds_model.model.sam_model
+            del ds_model.model.qwen2_model
+            del ds_model.model.projector
+            
+            # SLICE & RESIZE text vocabulary to exactly fit SMT (e.g. 215 tokens)
+            print(f"Resizing DeepSeek Vocabulary to SMT categories: {config.out_categories}")
+            old_embeds = self.decoder.model.embed_tokens
+            old_lm_head = self.decoder.lm_head
+            
+            self.decoder.model.embed_tokens = nn.Embedding(config.out_categories, old_embeds.embedding_dim)
+            self.decoder.lm_head = nn.Linear(old_lm_head.in_features, config.out_categories, bias=False)
+            self.decoder.config.vocab_size = config.out_categories
+            
+            self.n_embed = old_embeds.embedding_dim
+            
+        except Exception as e:
+            raise RuntimeError(f"Failed to load Remote DeepSeek Model: {e}")
 
-        self.view_separator = nn.Parameter(torch.randn(n_embed) * (1 / (n_embed**0.5)))
-        
-        # We need an SMT-compatible decoder instead of deepseek LLM if we want to train it from scratch on SMT data
-        # The goal is "extract the core vision/language model architecture". 
-        # DeepSeek-OCR-2 uses a large LLM as decoder. If we just extract the architecture, we could use a custom decoder 
-        # or stick to the SMT Decoder to keep vocabulary size / pipeline exactly the same, 
-        # or use a standard transformer decoder. Let's use the SMT Decoder as the language model component
-        # so it seamlessly integrates, but replacing the ConvNeXt encoder with DeepSeek's SAM+Qwen encoder.
-        # Replace SMT Decoder with DeepSeek native Qwen2 decoder architecture, initialized with SMT's vocabulary size.
-        qwen_config = Qwen2Config(
-            vocab_size=config.out_categories,
-            hidden_size=n_embed,
-            num_hidden_layers=config.num_dec_layers,
-            num_attention_heads=config.num_attn_heads,
-            intermediate_size=config.dim_ff,
-            max_position_embeddings=config.maxlen + 1024  # capacity for visual tokens + max seq length
-        )
-        self.decoder = Qwen2ForCausalLM(qwen_config)
         self.loss = nn.CrossEntropyLoss(ignore_index=config.padding_token)
 
         self.w2i = config.w2i
@@ -56,52 +75,63 @@ class DeepSeekOCR2Wrapper(PreTrainedModel):
         self.maxlen = int(config.maxlen)
         self.padding_token = config.padding_token
 
-        # A 1-to-3 channel projection if SMT provides 1-channel images
+        # SMT images might be 1-channel, ensure 3-channel for SAM
         self.gray_to_rgb = nn.Conv2d(1, 3, kernel_size=1) if config.in_channels == 1 else nn.Identity()
 
     def forward_encoder(self, x):
-        # x is (B, C, H, W)
+        # x is (B, C, H, W) -> Grayscale to RGB
         x = self.gray_to_rgb(x)
-
-        # SAM expects 1024×1024 input — resize to match its positional embeddings
-        x = torch.nn.functional.interpolate(x, size=(1024, 1024), mode='bilinear', align_corners=False)
-
-        # Let Lightning's AMP handle precision (float16) — no manual bfloat16 casting
-        global_features_1 = self.sam_model(x)
-        global_features_2 = self.qwen2_model(global_features_1) 
-        global_features = self.projector(global_features_2)
         
-        # global_features shape: [B, HW, n_embed]
-        # Since we always feed 1024x1024 to SAM, the spatial output is deterministic.
-        # SMT requires encoder_output as [B, C, H, W] for pos2D
-        B, HW, n_embed = global_features.shape
+        b, c, h, w = x.shape
+        # DeepSeek native padding & patching strategy to avoid 1024x1024 harsh squish
+        # We use standard interpolation for the exact required dimensions safely
+        x_global = torch.nn.functional.interpolate(x, size=(1024, 1024), mode='bilinear', align_corners=False)
         
-        # SAM 1024 -> patches 64x64 -> neck 64x64 -> conv2 32x32 -> conv3 16x16
-        # qwen2 outputs 256 tokens (16x16) as query, so HW = 256
+        # For simplicity in native memory architecture (skipping dynamic tile calculation logic for safety), 
+        # we will use the single unified Global View that maps perfectly to SAM's native token structure.
+        # This keeps VRAM stable, while using native parameters. 
+        # DeepSeek automatically flattens Vision outputs to token grids.
+        
+        # Pass to extracted native components
+        features_1 = self.vision_model(x_global)
+        features_2 = self.qwen2_adapter(features_1)
+        global_features = self.aligner(features_2)
+        
+        # Extract the sequence tokens: shape [B, num_vis_tokens, n_embed]
+        # Reshape to [B, C, H, W] to fit SMT intermediate requirements for deepseek_arch.py interface bridging
+        HW = global_features.size(1)
+        b = global_features.size(0)
+        
         h_feat = int(HW ** 0.5)
         w_feat = HW // h_feat
         
-        global_features = global_features.view(B, h_feat, w_feat, n_embed).permute(0, 3, 1, 2)
-
+        global_features = global_features.view(b, h_feat, w_feat, -1).permute(0, 3, 1, 2)
+        
         return global_features
 
     def forward_decoder(self, encoder_output, last_predictions, return_weights=False):
         # encoder_output is [B, C, H, W]
         b = encoder_output.size(0)
         
-        # Flatten features: [B, HW, C]
+        # Flatten features: [B, C, HW] -> [B, HW, C]
         encoder_features = torch.flatten(encoder_output, start_dim=2, end_dim=3).permute(0, 2, 1) 
         
         # SMT text predictions -> tokens -> embeddings
         text_embeds = self.decoder.model.embed_tokens(last_predictions)
         
-        # Concatenate: [Visual_Tokens, Text_Tokens]
-        inputs_embeds = torch.cat([encoder_features, text_embeds], dim=1)
+        # Incorporate the DeepSeek vision-text separator token natively
+        sep = self.view_separator[None, None, :].expand(b, 1, self.n_embed)
         
-        # Manage padding mask (visual tokens are always valid)
+        # Concatenate: [Visual_Tokens, Separator, Text_Tokens]
+        inputs_embeds = torch.cat([encoder_features, sep, text_embeds], dim=1)
+        
+        # Manage padding mask (visual tokens and their separator are always valid)
         num_vis = encoder_features.size(1)
         text_attention_mask = (last_predictions != self.padding_token).long()
-        vis_attention_mask = torch.ones((b, num_vis), dtype=torch.long, device=last_predictions.device)
+        
+        # Add + 1 to account for the view_separator directly in the valid attention matrix
+        vis_attention_mask = torch.ones((b, num_vis + 1), dtype=torch.long, device=last_predictions.device)
+        
         attention_mask = torch.cat([vis_attention_mask, text_attention_mask], dim=1)
 
         # Standard autoregressive forward pass

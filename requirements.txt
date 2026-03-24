@@ -13,12 +13,20 @@ timm
 torch
 torchinfo
 torchvision
-transformers
+transformers==4.46.3
 visualizer
 datasets
 
-verovio
+verovio==5.0.0
 wand
 cairosvg
 names
 wonderwords
+
+# DeepSeek Dependencies
+addict
+tokenizers==0.20.3
+PyMuPDF
+img2pdf
+einops
+easydict
