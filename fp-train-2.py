@@ -35,7 +35,7 @@ def main(config_path, starting_checkpoint):
     name_suffix = f"-{config.arch_type.upper()}" if hasattr(config, "arch_type") else ""
     wandb_logger = WandbLogger(project='SMT-FP', group=group, name=f"SMT-FP-CL{name_suffix}", log_model=False)
 
-    early_stopping = EarlyStopping(monitor="val_SER", min_delta=0.01, patience=5, mode="min", verbose=True)
+    # early_stopping = EarlyStopping(monitor="val_SER", min_delta=0.01, patience=5, mode="min", verbose=True)
 
     checkpointer = ModelCheckpoint(dirpath=config.checkpoint.dirpath, filename=f"{config.checkpoint.filename}{name_suffix}",
                                    monitor=config.checkpoint.monitor, mode=config.checkpoint.mode,
@@ -47,9 +47,9 @@ def main(config_path, starting_checkpoint):
 
     skip_steps: int = skip_cl_steps*40000
     trainer = Trainer(max_epochs=10000, min_steps=300000-skip_steps,
-                      check_val_every_n_epoch=5,
-                      logger=wandb_logger, callbacks=[checkpointer, stage_checkpointer, early_stopping], precision='16-mixed')
-    # datamodule.train_set.set_trainer_data(trainer) # Removed to avoid multiprocessing issues
+                      check_val_every_n_epoch=5, # add early stopping when needed [checkpointer, stage_checkpointer, early_stopping]
+                      logger=wandb_logger, callbacks=[checkpointer, stage_checkpointer], precision='16-mixed')
+    datamodule.train_set.set_trainer_data(trainer)
 
     trainer.fit(model_wrapper,datamodule=datamodule)
 

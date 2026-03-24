@@ -2,7 +2,7 @@
 	"arch_type": "deepseek",
 	"data": {
 		"data_path": "antoniorv6/grandstaff-ekern",
-		"batch_size": 32,
+		"batch_size": 24,
 		"vocab_name": "Polish_Scores_BeKern",
 		"num_workers": 20,
 		"krn_format": "bekern",
