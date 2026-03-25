@@ -147,8 +147,8 @@ class DeepSeekOCR2Wrapper(PreTrainedModel):
             output_attentions=return_weights
         )
 
-        # We only care about predicting the text sequence, so slice off the visual token logits
-        logits = outputs.logits[:, num_vis:, :]
+        # We only care about predicting the text sequence, so slice off the visual AND separator token logits
+        logits = outputs.logits[:, (num_vis + 1):, :]
 
         return SMTOutput(
             logits=logits,
