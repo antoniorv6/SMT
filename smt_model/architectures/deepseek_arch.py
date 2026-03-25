@@ -92,6 +92,9 @@ class DeepSeekOCR2Wrapper(PreTrainedModel):
         # This keeps VRAM stable, while using native parameters. 
         # DeepSeek automatically flattens Vision outputs to token grids.
         
+        # Cast precision to match the HuggingFace parameter precision natively used in the weights!
+        x_global = x_global.to(self.decoder.dtype)
+        
         # Pass to extracted native components
         features_1 = self.vision_model(x_global)
         features_2 = self.qwen2_adapter(features_1)
