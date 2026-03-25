@@ -3,7 +3,7 @@
 	"use_pretrained_weights": true,
 	"data": {
 		"data_path": "antoniorv6/grandstaff-ekern",
-		"batch_size": 1,
+		"batch_size": 24,
 		"vocab_name": "Polish_Scores_BeKern",
 		"num_workers": 8,
 		"krn_format": "bekern",
