@@ -79,7 +79,7 @@ class DeepSeekOCR2Wrapper(PreTrainedModel):
         self.padding_token = config.padding_token
 
         # SMT images might be 1-channel, ensure 3-channel for SAM
-        self.gray_to_rgb = nn.Conv2d(1, 3, kernel_size=1) if config.in_channels == 1 else nn.Identity()
+        self.gray_to_rgb = (nn.Conv2d(1, 3, kernel_size=1) if config.in_channels == 1 else nn.Identity()).to(self.decoder.dtype)
 
     def forward_encoder(self, x):
         # x is (B, C, H, W) -> Grayscale to RGB
