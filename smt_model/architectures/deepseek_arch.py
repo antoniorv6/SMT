@@ -62,8 +62,8 @@ class DeepSeekOCR2Wrapper(PreTrainedModel):
             old_embeds = self.decoder.model.embed_tokens
             old_lm_head = self.decoder.lm_head
             
-            self.decoder.model.embed_tokens = nn.Embedding(config.out_categories, old_embeds.embedding_dim)
-            self.decoder.lm_head = nn.Linear(old_lm_head.in_features, config.out_categories, bias=False)
+            self.decoder.model.embed_tokens = nn.Embedding(config.out_categories, old_embeds.embedding_dim).to(self.decoder.dtype)
+            self.decoder.lm_head = nn.Linear(old_lm_head.in_features, config.out_categories, bias=False).to(self.decoder.dtype)
             self.decoder.config.vocab_size = config.out_categories
             
             self.n_embed = old_embeds.embedding_dim
