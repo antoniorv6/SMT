@@ -28,8 +28,9 @@ class SMT_Trainer(L.LightningModule):
 
         self.save_hyperparameters()
 
+        dummy_dtype = next(self.model.parameters()).dtype
         summary(self, input_size=[(1,1,self.config.maxh,self.config.maxw), (1,self.config.maxlen)],
-                dtypes=[torch.float, torch.long])
+                dtypes=[dummy_dtype, torch.long])
         self.current_stage: int = 1
         self.stage_calculator: Callable[[int], int] = lambda x: self.current_stage
 
