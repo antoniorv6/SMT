@@ -31,3 +31,7 @@ img2pdf
 einops
 easydict
 
+# Flash Attention Dependencies
+ninja
+packaging
+flash-attn>=2.0.4

@@ -32,11 +32,11 @@ class DeepSeekOCR2Wrapper(PreTrainedModel):
             model_name = 'deepseek-ai/DeepSeek-OCR-2'
             if use_pretrained:
                 print(f"Loading Authentic DeepSeek-OCR-2 from HF Hub with pretrained weights...")
-                ds_model = AutoModel.from_pretrained(model_name, trust_remote_code=True, _attn_implementation='eager', torch_dtype=torch.bfloat16)
+                ds_model = AutoModel.from_pretrained(model_name, trust_remote_code=True, _attn_implementation='flash_attention_2', torch_dtype=torch.bfloat16)
             else:
                 print(f"Loading Authentic DeepSeek-OCR-2 Architecture (Random Weights)...")
                 ds_config = AutoConfig.from_pretrained(model_name, trust_remote_code=True)
-                ds_config._attn_implementation = 'eager'
+                ds_config._attn_implementation = 'flash_attention_2'
                 ds_model = AutoModel.from_config(ds_config, trust_remote_code=True, torch_dtype=torch.bfloat16)
                 
             # Enable Gradient Checkpointing to save massive amounts of VRAM on A100
