@@ -1,16 +1,17 @@
 {
 	"arch_type": "deepseek",
+	"use_pretrained_weights": true,
 	"data": {
 		"data_path": "antoniorv6/grandstaff-ekern",
-		"batch_size": 24,
+		"batch_size": 1,
 		"vocab_name": "Polish_Scores_BeKern",
-		"num_workers": 20,
+		"num_workers": 8,
 		"krn_format": "bekern",
 		"reduce_ratio": 0.5
 	},
 	"checkpoint": {
 		"dirpath": "/var/tmp/xomelka1/.cache/weights/Polish_Scores",
-		"filename": "TestIfNaNErrors",
+		"filename": "DeepseekDecoder_Pretraining",
 		"monitor": "val_SER"
 	}
 }
