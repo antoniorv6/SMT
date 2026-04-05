@@ -1,5 +1,5 @@
 [project]
-name = "smt"
+name = "smt-model"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
@@ -20,3 +20,6 @@ dependencies = [
     "verovio==5.0.0",
     "wandb>=0.19.7",
 ]
+
+[tool.setuptools]
+packages = ['vocab', 'config', 'graphics', 'smt_model', 'data_augmentation']
