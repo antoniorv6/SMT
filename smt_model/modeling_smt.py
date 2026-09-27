@@ -399,21 +399,35 @@ class SMTModelForCausalLM(PreTrainedModel):
 
     @torch.no_grad
     def predict(self, input, convert_to_str=False, return_weights=False):
-        predicted_sequence = torch.from_numpy(np.asarray([self.w2i['<bos>']])).to(input.device).unsqueeze(0)
+        b = input.size(0)
+        predicted_sequence = torch.full((b, 1), self.w2i['<bos>'], dtype=torch.long, device=input.device)
         encoder_output = self.forward_encoder(input)
-        text_sequence = []
-        for i in range(self.maxlen - predicted_sequence.shape[-1]):
+        
+        has_eos = torch.zeros(b, dtype=torch.bool, device=input.device)
+        eos_id = self.w2i['<eos>']
+
+        for i in range(self.maxlen - predicted_sequence.size(1)):
             output = self.forward_decoder(encoder_output=encoder_output, last_predictions=predicted_sequence,
                                           return_weights=return_weights)
-            predicted_token = torch.argmax(output.logits[:, -1, :], dim=-1).item()
-            predicted_sequence = torch.cat([predicted_sequence, torch.argmax(output.logits[:, -1, :], dim=-1, keepdim=True)], dim=1)
-            if convert_to_str:
-                predicted_token = f"{predicted_token}"
-            if self.i2w[predicted_token] == '<eos>':
+            predicted_tokens = torch.argmax(output.logits[:, -1, :], dim=-1, keepdim=True)
+            predicted_sequence = torch.cat([predicted_sequence, predicted_tokens], dim=1)
+            
+            has_eos |= (predicted_tokens.squeeze(1) == eos_id)
+            if has_eos.all():
                 break
-            text_sequence.append(self.i2w[predicted_token])
 
-        return text_sequence, output
+        text_sequences = []
+        for b_idx in range(b):
+            seq = []
+            for token_id in predicted_sequence[b_idx, 1:]:
+                token_val = str(token_id.item()) if convert_to_str else token_id.item()
+                token_str = self.i2w.get(token_val, "")
+                if token_str == '<eos>':
+                    break
+                seq.append(token_str)
+            text_sequences.append(seq)
+
+        return text_sequences, output
 
 
     def _generate_token_mask(self, token_len, total_size, device):
