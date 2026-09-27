@@ -4,7 +4,7 @@
 </p>
 
 <h1 align='center'>Sheet Music Transformer</h1>
-<h3> Official repository for the papers: <a href="https://link.springer.com/chapter/10.1007/978-3-031-70552-6_2"><i>Sheet Music Transformer: End-to-End Full-Page Optical Music Recognition for Pianoform Sheet Music</i></a> and <a href="https://arxiv.org/abs/2405.12105"><i>End-to-End Full-Page Optical Music Recognition for Pianoform Sheet Music</a></i>
+<h3> Official repository for the papers: <a href="https://link.springer.com/chapter/10.1007/978-3-031-70552-6_2"><i>Sheet Music Transformer: End-To-End Optical Music Recognition Beyond Monophonic Transcription</i></a> and <a href="https://arxiv.org/abs/2405.12105"><i>End-to-End Full-Page Optical Music Recognition for Pianoform Sheet Music</a></i>
 
 <p align='center'>
   <img src='https://img.shields.io/badge/python-3.9.0-orange' alt='Python'>
