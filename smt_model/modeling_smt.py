@@ -407,11 +407,15 @@ class SMTModelForCausalLM(PreTrainedModel):
                                           return_weights=return_weights)
             predicted_token = torch.argmax(output.logits[:, -1, :], dim=-1).item()
             predicted_sequence = torch.cat([predicted_sequence, torch.argmax(output.logits[:, -1, :], dim=-1, keepdim=True)], dim=1)
-            if convert_to_str:
-                predicted_token = f"{predicted_token}"
-            if self.i2w[predicted_token] == '<eos>':
+            # i2w has int keys when it comes from the vocab .npy files and str keys when it
+            # comes from the published config.json, so accept either regardless of convert_to_str.
+            if predicted_token in self.i2w:
+                token = self.i2w[predicted_token]
+            else:
+                token = self.i2w[f"{predicted_token}"]
+            if token == '<eos>':
                 break
-            text_sequence.append(self.i2w[predicted_token])
+            text_sequence.append(token)
 
         return text_sequence, output
 
